@@ -2,12 +2,14 @@
 
 namespace HC;
 
+use InvalidArgumentException;
+
 /**
- * @author h-collector <githcoll@gmail.com>
- * 
- * @link          http://hcoll.onuse.pl/projects/view/HCImage
- * @package       HC
- * @license       GNU LGPL (http://www.gnu.org/copyleft/lesser.html)
+ * @package HC
+ * @author  h-collector <githcoll@gmail.com>
+ *          
+ * @link    http://hcoll.onuse.pl/projects/view/HCImage
+ * @license GNU LGPL (http://www.gnu.org/copyleft/lesser.html)
  */
 final class Color {
 
@@ -17,33 +19,63 @@ final class Color {
             /* @var int */ $alpha,
             /* @var int */ $index;
 
+    /**
+     * @return int
+     */
     public function getRed() {
         return $this->red;
     }
 
+    /**
+     * @return int
+     */
     public function getGreen() {
         return $this->green;
     }
 
+    /**
+     * @return int
+     */
     public function getBlue() {
         return $this->blue;
     }
 
+    /**
+     * @return int
+     */
     public function getAlpha() {
         return $this->alpha;
     }
 
+    /**
+     * @return bool
+     */
     public function isOpaque() {
         return (0 === $this->alpha);
     }
 
+    /**
+     * 
+     * @param int $red   red   color complement [0-255]
+     * @param int $green green color complement [0-255]
+     * @param int $blue  blue  color complement [0-255]
+     * @param int $alpha alpha color complement [0-127]
+     */
     public function __construct($red, $green, $blue, $alpha = 0) {
-        $this->red   = 0xff & $red;//((int) $red)
+        $this->red   = 0xff & $red; //((int) $red)
         $this->green = 0xff & $green;
         $this->blue  = 0xff & $blue;
         $this->alpha = 0x7f & $alpha;
     }
-    
+
+    /**
+     * 
+     * @param int $red   red   color complement [0-255]
+     * @param int $green green color complement [0-255]
+     * @param int $blue  blue  color complement [0-255]
+     * @param int $alpha alpha color complement [0-127]
+     * @return Color
+     */
     private function _($red, $green, $blue, $alpha = 0) {
         //$this->__construct($red, $green, $blue, $alpha);//optim for speed
         $this->red   = 0xff & $red;
@@ -53,18 +85,33 @@ final class Color {
         return $this;
     }
 
+    /**
+     * Return transparent color
+     * 
+     * @return int
+     */
     public static function clear() {
         static $transparent;
         isset($transparent) || $transparent = new self(0, 0, 0, 127);
         return $transparent;
     }
 
+    /**
+     * Create new color from rgba components
+     * 
+     * @param int $red   red   color complement [0-255]
+     * @param int $green green color complement [0-255]
+     * @param int $blue  blue  color complement [0-255]
+     * @param int $alpha alpha color complement [0-127]
+     * @return Color
+     */
     public static function fromRGBA($red, $green, $blue, $alpha = 0) {
         return new self($red, $green, $blue, $alpha = 0);
     }
 
     /**
-     * Cone of HSV
+     * Create new color from HSV
+     * 
      * @param float $h – Hue angle on color circle of base with values between 0° and 360°(0-255)
      * @param float $s – Saturation - base radius 0 - 1.0 (0 - 255)
      * @param float $v – Value aka Brightness 0 - 1.0 (0 - 255)
@@ -73,11 +120,11 @@ final class Color {
     public static function fromHSV($h, $s, $v, $limit255 = false) {
         $limit255 ? $s /= 256.0 : $v *= 255;
         if ($s == 0.0)
-            return new self($v, $v, $v);//(int) $v, (int) $v, (int) $v
+            return new self($v, $v, $v); //(int) $v, (int) $v, (int) $v
         $limit255 ? $h /= (256.0 / 6.0) : $h /= 60.0;
         $i = floor($h);
         $f = $h - $i;
-        $p = $v * (1.0 - $s);//(integer)() 
+        $p = $v * (1.0 - $s); //(integer)() 
         $q = $v * (1.0 - $s * $f);
         $t = $v * (1.0 - $s * (1.0 - $f));
         switch ($i) {
@@ -89,7 +136,13 @@ final class Color {
             default: return new self($v, $t, $p);
         }
     }
-    
+
+    /**
+     * Create new color from string
+     * 
+     * @param string $color valid css value eg. #00ff00ff, #00ff00, #000, cyan
+     * @return Color
+     */
     public static function fromString($color) {
         $c = (string) $color;
         if (isset($c[0]) && $c[0] === '#') {
@@ -99,7 +152,7 @@ final class Color {
                 case 8:
                     return self::fromInt(hexdec($c));
                 default:
-                    throw new \InvalidArgumentException(sprintf(
+                    throw new InvalidArgumentException(sprintf(
                             'Color must be a hex value in regular (6 characters), ' .
                             'short (3 characters) or argb (8 characters) notation, ' .
                             '"%s" given', $c
@@ -108,20 +161,32 @@ final class Color {
         } elseif (($c = self::namedColor2RGB($c)) !== false) {
             return self::fromArray($c);
         } else {
-            throw new \InvalidArgumentException(sprintf(
+            throw new InvalidArgumentException(sprintf(
                     'Named Color not found, "%s" given', $c
             ));
         }
     }
 
+    /**
+     * Create new color from int
+     * 
+     * @param int $color 32bit value of color index with alpha eg. 0x40202020
+     * @return Color
+     */
     public static function fromInt($color) {
         $color = intval($color);
         return new self(($color >> 16), ($color >> 8), ($color), ($color >> 24));
     }
 
+    /**
+     * Create color from array 
+     * 
+     * @param array  $color [r,g,b] or [r,g,b,a]
+     * @return Color
+     */
     public static function fromArray(array $color) {
         if (($num = count($color)) !== 3 && $num !== 4)
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
             'Color argument if array, must look like array(R, G, B[, A]), ' .
             'where R, G, B are the integer values between 0 and 255 for ' .
             'red, green and blue color indexes accordingly and A is integer ' .
@@ -131,106 +196,182 @@ final class Color {
     }
 
     /**
+     * Create color from mixed value
      * 
-     * @param type $color
-     * @param type $green
-     * @param type $blue
-     * @param type $alpha
-     * @return Color
-     * @throws \InvalidArgumentException
+     * @param string|int|Color|null $color if Color then clone, if null then transparent
+     * @param int                   $green
+     * @param int                   $blue 
+     * @param int                   $alpha
+     * @return Color                    
+     * @throws InvalidArgumentException
      */
     public static function get($color = null, $green = null, $blue = null, $alpha = 0) {
-        if ($color instanceof Color)    return clone $color;
-        if ($color === null)        	return self::clear();
-        if (is_array($color))   	return self::fromArray($color);
-        if (is_string($color))          return self::fromString($color);
-        if ($blue !== null)             return new self($color, $green, $blue, $alpha);
-        if (is_int($color))             return self::fromInt($color);
+        if ($color instanceof Color) return clone $color;
+        if ($color === null)         return self::clear();
+        if (is_array($color))        return self::fromArray($color);
+        if (is_string($color))       return self::fromString($color);
+        if ($blue !== null)          return new self($color, $green, $blue, $alpha);
+        if (is_int($color))          return self::fromInt($color);
 
-        throw new \InvalidArgumentException(sprintf(
-                        'Color must be specified as a hexadecimal string, color name, ' .
-                        'array or integer, %s given', gettype($color)
+        throw new InvalidArgumentException(sprintf(
+                'Color must be specified as a hexadecimal string, color name, ' .
+                'array or integer, %s given', gettype($color)
         ));
     }
-    
+
+    /**
+     * Return color 32bit value of color index with alpha
+     * 
+     * @see Color::get()
+     * @param string|int|Color|null $color if Color then clone, if null then transparent
+     * @param int                   $green
+     * @param int                   $blue 
+     * @param int                   $alpha
+     * @return int
+     * @throws InvalidArgumentException
+     */
     public static function index($color = null, $green = null, $blue = null, $alpha = 0) {
-        if(is_int($color) && $green === null) 
+        if (is_int($color) && $green === null)
             return $color & 0x7fffffff;
         return self::get($color, $green, $blue, $alpha)->toInt();
     }
 
     /**
-     * @param integer $alpha
-     * @return Color
+     * Dissolve color
+     * 
+     * @param int $alpha transparency to add
+     * @param bool $self return self or new object
+     * @return Color  
      */
     public function dissolve($alpha, $self = false) {
         $alpha = min(max($this->alpha + $alpha, 0), 0x7f);
-        if($self)   return $this->_($this->red, $this->green, $this->blue, $alpha);
-                    return new self($this->red, $this->green, $this->blue, $alpha);
+        if ($self)
+            return $this->_($this->red, $this->green, $this->blue, $alpha);
+        return new self($this->red, $this->green, $this->blue, $alpha);
     }
 
     /**
+     * Add shade to color
+     * 
      * @param integer $shade
-     * @return Color
+     * @param bool $self return self or new object
+     * @return Color  
      */
     public function adjustBrightness($shade, $self = false) {
-        $r = min(max(0, $this->red   + $shade), 255);
+        $r = min(max(0, $this->red + $shade), 255);
         $g = min(max(0, $this->green + $shade), 255);
-        $b = min(max(0, $this->blue  + $shade), 255);
-        if($self)   return $this->_($r, $g, $b, $this->alpha);
-                    return new self($r, $g, $b, $this->alpha);
+        $b = min(max(0, $this->blue + $shade), 255);
+        if ($self)
+            return $this->_($r, $g, $b, $this->alpha);
+        return new self($r, $g, $b, $this->alpha);
     }
 
+    /**
+     * Make color gray
+     * 
+     * @param bool $self return self or new object
+     * @return Color  
+     */
     public function gray($self = false) {
         $r = 0.2989 * $this->red;
         $g = 0.5870 * $this->green;
         $b = 0.1140 * $this->blue;
-        if($self)   return $this->_($r, $g, $b, $this->alpha);
-                    return new self($r, $g, $b, $this->alpha);
-    }
-
-    public function sum() {
-        return $this->red + $this->green + $this->blue/* + $this->alpha*/;
-    }
-
-    public function rgb($self = false) {
-        return $self ? $this : clone $this;
-    }
-    
-    public function rbg($self = false) {
-        if($self)   return $this->_($this->red, $this->blue, $this->green, $this->alpha);
-                    return new self($this->red, $this->blue, $this->green, $this->alpha);
-    }
-
-    public function bgr($self = false) {
-        if($self)   return $this->_($this->blue, $this->green, $this->red, $this->alpha);
-                    return new self($this->blue, $this->green, $this->red, $this->alpha);
-    }
-
-    public function brg($self = false) {
-        if($self)   return $this->_($this->blue, $this->red, $this->green, $this->alpha);
-                    return new self($this->blue, $this->red, $this->green, $this->alpha);
-    }
-
-    public function gbr($self = false) {
-        if($self)   return $this->_($this->green, $this->blue, $this->red, $this->alpha);
-                    return new self($this->green, $this->blue, $this->red, $this->alpha);
-    }
-
-    public function grb($self = false) {
-        if($self)   return $this->_($this->green, $this->red, $this->blue, $this->alpha);
-                    return new self($this->green, $this->red, $this->blue, $this->alpha);
+        if ($self)
+            return $this->_($r, $g, $b, $this->alpha);
+        return new self($r, $g, $b, $this->alpha);
     }
 
     /**
-     * @deprecated use 0xAARRGGBB hex instead
-     * @param resource $image
+     * Sum values of color components [0-765]
+     * 
      * @return int
-     * @throws \InvalidArgumentException
+     */
+    public function sum() {
+        return $this->red + $this->green + $this->blue/* + $this->alpha */;
+    }
+
+    /**
+     * Return self or clone
+     * 
+     * @param bool $self return self or new object
+     * @return Color  
+     */
+    public function rgb($self = false) {
+        return $self ? $this : clone $this;
+    }
+
+    /**
+     * Swap blue and green component
+     * 
+     * @param bool $self return self or new object
+     * @return Color  
+     */
+    public function rbg($self = false) {
+        if ($self)
+            return $this->_($this->red, $this->blue, $this->green, $this->alpha);
+        return new self($this->red, $this->blue, $this->green, $this->alpha);
+    }
+
+    /**
+     * Swap blue and red component
+     * 
+     * @param bool $self return self or new object
+     * @return Color  
+     */
+    public function bgr($self = false) {
+        if ($self)
+            return $this->_($this->blue, $this->green, $this->red, $this->alpha);
+        return new self($this->blue, $this->green, $this->red, $this->alpha);
+    }
+
+    /**
+     * Swap red with green and green with blue component
+     * 
+     * @param bool $self return self or new object
+     * @return Color  
+     */
+    public function brg($self = false) {
+        if ($self)
+            return $this->_($this->blue, $this->red, $this->green, $this->alpha);
+        return new self($this->blue, $this->red, $this->green, $this->alpha);
+    }
+
+    /**
+     * Swap red with blue and blue with green component
+     * 
+     * @param bool $self return self or new object
+     * @return Color  
+     */
+    public function gbr($self = false) {
+        if ($self)
+            return $this->_($this->green, $this->blue, $this->red, $this->alpha);
+        return new self($this->green, $this->blue, $this->red, $this->alpha);
+    }
+
+    /**
+     * Swap red and green component
+     * 
+     * @param bool $self return self or new object
+     * @return Color  
+     */
+    public function grb($self = false) {
+        if ($self)
+            return $this->_($this->green, $this->red, $this->blue, $this->alpha);
+        return new self($this->green, $this->red, $this->blue, $this->alpha);
+    }
+
+    /**
+     * Allocate color
+     * 
+     * @see imagecolorexactalpha,imagecolorclosestalpha,imagecolorallocatealpha
+     * @deprecated use 0xAARRGGBB hex instead
+     * @param resource $image gd image handle
+     * @return int                      
+     * @throws InvalidArgumentException
      */
     public function allocateColor($image) {
         if (!Image::isValidImageHandle($image))
-            throw new \InvalidArgumentException('Invalid image handle');
+            throw new InvalidArgumentException('Invalid image handle');
 
         $r     = $this->red;
         $g     = $this->green;
@@ -247,15 +388,28 @@ final class Color {
         return $color;
     }
 
+    /**
+     * Mix color with other color
+     * 
+     * @param Color $color Color to mix with
+     * @param bool  $self return self or new object
+     * @return Color  
+     */
     public function mixWithColor(Color $color, $self = false) {
-        $r = (($this->red   + $color->red)   / 2) + 0.5;//(int) ()
+        $r = (($this->red + $color->red) / 2) + 0.5; //(int) ()
         $g = (($this->green + $color->green) / 2) + 0.5;
-        $b = (($this->blue  + $color->blue)  / 2) + 0.5;
+        $b = (($this->blue + $color->blue) / 2) + 0.5;
         $a = (($this->alpha + $color->alpha) / 2) + 0.5;
-        if($self)   return $this->_($r, $g, $b, $a);
-                    return new self($r, $g, $b, $a);
+        if ($self)
+            return $this->_($r, $g, $b, $a);
+        return new self($r, $g, $b, $a);
     }
 
+    /**
+     * 
+     * @param string $color color name
+     * @return array return [r,g,b] associated with name
+     */
     public static function namedColor2RGB($color) {
         static $colornames = null;
         isset($colornames) || $colornames = array(
@@ -407,6 +561,11 @@ final class Color {
         return false;
     }
 
+    /**
+     * Get current color as HSV
+     * 
+     * @return array
+     */
     public function getAsHSV() {
         $min = min($this->red, $this->green, $this->blue);
         $val = max($this->red, $this->green, $this->blue);
@@ -415,32 +574,42 @@ final class Color {
             $sat = 0;
         } else {
             switch ($min) {
-                case $this->red: $f   = $this->green - $this->blue;
-                    $i   = 3 * 255;
+                case $this->red: $f = $this->green - $this->blue;
+                    $i = 3 * 255;
                     break;
                 case $this->green: $f = $this->blue - $this->red;
-                    $i   = 5 * 255;
+                    $i = 5 * 255;
                     break;
-                case $this->blue: $f  = $this->red - $this->green;
-                    $i   = 1 * 255;
+                case $this->blue: $f = $this->red - $this->green;
+                    $i = 1 * 255;
             }
             $hue = (($i - $f / ($val - $min)) * 60) % 360;
             $sat = (($val - $min) / $val);
         }
         return (object) array('hue' => $hue, 'sat' => $sat, 'val' => $val / 255.0);
     }
-    
+
+    /**
+     * Get current color index
+     * 
+     * @return int
+     */
     public function toInt() {
         if (!isset($this->index)) {
             $this->index =
                     ($this->alpha << 24) +
-                    ($this->red   << 16) +
+                    ($this->red << 16) +
                     ($this->green << 8) +
                     ($this->blue);
         }
         return $this->index;
     }
 
+    /**
+     * Get current color as RGBA
+     * 
+     * @return array
+     */
     public function toArray() {
         return array(
             'r' => $this->red,
@@ -449,21 +618,25 @@ final class Color {
             'a' => $this->alpha
         );
     }
-  
+
+    /**
+     * Get color components
+     * 
+     * @param string $name Component name
+     * @return int
+     */
     public function __get($name) {
         if (!property_exists($this, $name))
-            throw new \InvalidArgumentException('Invalid property');
+            throw new InvalidArgumentException('Invalid property');
         return ($name === 'index') ? $this->toInt() : $this->{$name};
     }
 
     /**
-     * @example (new Color(255,0,0))->dissolve(20)->getIndex() 
-     *          <=> (new Color(255,0,0,20))->getIndex()
-     *          <=> (new Color(255,0,0))(20) 
-     *          <=> (new Color(255,0,0,20)) 
-     *          <=> Color(255,0,0,20)
-     * @param type $dissolve
-     * @return type
+     * Invoke as function and return dissolved color index
+     * 
+     * @see Color::toInt(),Color::dissolve()
+     * @param int $dissolve transparency to add
+     * @return int
      */
     public function __invoke($dissolve = null) {
         if (is_int($dissolve))
@@ -471,6 +644,11 @@ final class Color {
         return $this->toInt();
     }
 
+    /**
+     * Return as hexadecimal value
+     * 
+     * @return string
+     */
     public function __toString() {
 //        return sprintf('#%08x', $this->toInt());
         return sprintf('#%02x%02x%02x%02x', $this->alpha, $this->red, $this->green, $this->blue);

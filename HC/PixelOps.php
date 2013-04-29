@@ -2,16 +2,20 @@
 
 namespace HC;
 
+use InvalidArgumentException;
+
 /**
- * Description of Image
+ * Some useful methods for Canvas::pixelOperation and Canvas::convolution
  *
- * @author h-collector <githcoll@gmail.com>
- * 
- * @link          http://hcoll.onuse.pl/view/HCImage
- * @package       HC
- * @license       GNU LGPL (http://www.gnu.org/copyleft/lesser.html)
+ * @package HC
+ * @author  h-collector <githcoll@gmail.com>
+ *          
+ * @link    http://hcoll.onuse.pl/view/HCImage
+ * @license GNU LGPL (http://www.gnu.org/copyleft/lesser.html)
  */
 class PixelOps {
+
+    /**#@+ @var string */
     const MAT_MEAN_REMOVAL  = 'mean removal (sharpen)';
     const MAT_SHARPEN       = 'sharpen';
     const MAT_SHARPEN_NICE  = 'sharpen nice';
@@ -22,42 +26,50 @@ class PixelOps {
     const MAT_EMBOSS_SUBTLE = 'emboss subtle';
     const MAT_EDGE_DETECT   = 'edge detect';
     const MAT_EDGE_DETECT2  = 'edge detect2';
+    /**#@-*/
 
+    /**
+     * Get Convolution matrix by type
+     * 
+     * @see imagefilter,imageconvolution,imagelayer
+     * @param string $type type of matrix
+     * @return array float|int[3][3]
+     */
     public static function getConvMatrix($type) {
         switch ($type) {
-            case MAT_MEAN_REMOVAL://IMG_FILTER_MEAN_REMOVAL
+            case self::MAT_MEAN_REMOVAL://IMG_FILTER_MEAN_REMOVAL
                 return array(
                     array(-1, -1, -1), array(-1,  9, -1), array(-1, -1, -1)
                 );
-            case MAT_SHARPEN:
+            case self::MAT_SHARPEN:
                 return array(
                     array( 0, -2,  0), array(-2, 11, -2), array( 0, -2,  0)
                 );
-            case MAT_SHARPEN_NICE:
+            case self::MAT_SHARPEN_NICE:
                 return array(
                     array(-1.2, -1, -1.2), array(-1.0, 20, -1.0), array(-1.2, -1, -1.2)
                 );
-            case MAT_UNSHARPEN://IMG_FILTER_SMOOTH
+            case self::MAT_UNSHARPEN://IMG_FILTER_SMOOTH
                 return array(
                     array(-1, -1, -1), array(-1, 17, -1), array(-1, -1, -1)
                 );
-            case MAT_DILATE:
+            case self::MAT_DILATE:
                 return array(
                     array( 0,  1,  0), array( 1,  1,  1), array( 0,  1,  0)
                 );
-            case MAT_BLUR://IMG_FILTER_GAUSSIAN_BLUR
+            case self::MAT_BLUR://IMG_FILTER_GAUSSIAN_BLUR
                 return array(
                     array( 1,  2,  1), array( 2,  4,  2), array( 1,  2,  1)
                 );
-            case MAT_EMBOSS://IMG_FILTER_EMBOSS
+            case self::MAT_EMBOSS://IMG_FILTER_EMBOSS
                 return array(
                     array( 2,  0,  0), array( 0, -1,  0), array( 0,  0, -1)
                 );
-            case MAT_EMBOSS_SUBTLE:
+            case self::MAT_EMBOSS_SUBTLE:
                 return array(
                     array( 1,  1, -1), array( 1,  3, -1), array( 1, -1, -1)
                 );
-            case MAT_EDGE_DETECT://IMG_FILTER_EDGEDETECT
+            case self::MAT_EDGE_DETECT://IMG_FILTER_EDGEDETECT
                 return array(
                     array( 1,  1,  1), array( 1, -7,  1), array( 1,  1,  1)
                 );//offset 127
@@ -65,37 +77,74 @@ class PixelOps {
                 return array(
                     array(-5,  0,  0), array( 0,  0,  0), array( 0,  0,  5)
                 );
-            default: throw new \InvalidArgumentException('Invalid Matix type');
+            default: throw new InvalidArgumentException('Invalid Matix type');
         }
     }
-    
+
+    /**
+     * Add alpha to image
+     * 
+     * @see Canvas::pixelOperation(),Image::merge()
+     * 
+     * @param int $alpha transparency to add
+     * @return callable pixel dissolver
+     */
     public static function pixelTransparency($alpha) {
         return function(Color $pixel) use ($alpha) {
                     return $pixel->dissolve($alpha);
-                };    
+                };
     }
 
-    public static function pixelSaltAndPepper($factor, $salt = 0x00ffffff, $pepper = 0x00000000){
-        $white = (int)($factor/2 - 1);
-        $black = (int)($factor/2 + 1);
+    /**
+     * Add salt and pepper to image
+     * 
+     * @see Canvas::pixelOperation()
+     * @param int $factor how much of salt and pepper to add, where 1 is max
+     * @param int $salt   color of salt
+     * @param int $pepper color of pepper
+     * @return callable salt or pepper maker
+     */
+    public static function pixelSaltAndPepper($factor = 20, $salt = 0x00ffffff, $pepper = 0x00000000) {
+        $white = (int) ($factor / 2 - 1);
+        $black = (int) ($factor / 2 + 1);
         return function() use ($factor, $white, $black, $salt, $pepper) {
                     $random = mt_rand(0, $factor);
                     if ($random === $white) return $salt;
                     if ($random === $black) return $pepper;
-                }; 
+                };
     }
 
-
-    public static function pixelNoise($factor) {
-        if($factor < 0) $factor = -$factor;
+    /**
+     * Add rgb noise to image
+     * 
+     * @see Canvas::pixelOperation()
+     * @param int $factor how strong noise to add, 255 is max
+     * @return callable noise maker
+     */
+    public static function pixelNoise($factor = 100) {
+        if ($factor < 0)
+            $factor = -$factor;
         return function(Color $pixel) use ($factor) {
                     return $pixel->adjustBrightness(mt_rand(-$factor, $factor));
                 };
     }
 
+    /**
+     * Swap rgb channels in image
+     * 
+     * @see Canvas::pixelOperation()
+     * @see Color::rgb()
+     * @see Color::rbg()
+     * @see Color::bgr()
+     * @see Color::brg()
+     * @see Color::gbr()
+     * s@see Color::grb()
+     * @param string  $swap type of color components swap
+     * @return callable color swapper
+     */
     public static function pixelSwapColor($swap = 'rgb') {
         if (!method_exists(Color::clear(), $swap))
-            throw new \InvalidArgumentException('Swap function does not exists');
+            throw new InvalidArgumentException('Swap function does not exists');
 
 //        return function(Color $pixel) use ($swap) {
 //                    return $pixel->{$swap}(true);
@@ -110,6 +159,12 @@ class PixelOps {
         }
     }
 
+    /**
+     * 
+     * @see Canvas::pixelOperation()
+     * @param Color $color color to filter
+     * @return callable filter
+     */
     public static function pixelFilterHue(Color $color) {
         $rHue = $color->getRed()   / $color->sum();
         $gHue = $color->getGreen() / $color->sum();
