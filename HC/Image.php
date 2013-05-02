@@ -2,11 +2,12 @@
 
 namespace HC;
 
+use Exception;
 use ErrorException;
 use RuntimeException;
 use InvalidArgumentException;
-use stdClass;
 use finfo;
+use stdClass;
 
 /**
  * Image
@@ -90,15 +91,14 @@ class Image {//\SplSubject
     /**
      * Load image from disk, url or binary
      * 
-     * @uses Image::loadFromString()
+     * @uses Image::loadFromString() autodetected if not resource
      * @uses Image::loadFromFile()
      * @param string $image      path, url or binary string
-     * @param bool   $fromString create image from string
      * @throws InvalidArgumentException
      * @return Image
      */
-    public static function load($image, $fromString = false) {
-        return new self($image, $fromString);
+    public static function load($image) {
+        return new self($image, is_string($image) && !ctype_print($image));
     }
 
     /**
@@ -108,7 +108,7 @@ class Image {//\SplSubject
      * @return bool true if is valid
      */
     public static function isValidImageHandle($handle) {
-        return (is_resource($handle) && get_resource_type($handle) == 'gd');
+        return (is_resource($handle) && get_resource_type($handle) === 'gd');
     }
 
     /**
@@ -122,7 +122,7 @@ class Image {//\SplSubject
     private function loadFromString($data) {
         $this->handle = imagecreatefromstring($data);
         if (!self::isValidImageHandle($this->handle))
-            throw new RuntimeException("Could not create image from data.");
+            throw new RuntimeException("Could not create image from data");
 
         $mimetypes = array(
             'image/gif'  => IMAGETYPE_GIF,
@@ -148,7 +148,7 @@ class Image {//\SplSubject
      */
     private function loadFromFile($filename) {
         if (!is_file($filename) && strpos($filename, 'http://') !== 0)
-            throw new InvalidArgumentException("Image file [{$filename}] not found.");
+            throw new InvalidArgumentException("Image file [{$filename}] not found");
 
         if (!function_exists('exif_imagetype')) {
             $imageInfo       = getimagesize($filename);
@@ -191,7 +191,6 @@ class Image {//\SplSubject
     public function save($filename = false, $imageType = false, $quality = false /* 85 | 6 */, $permissions = null) {
         if ($this->saveOrOutput($filename, $imageType, $quality) === false)
             throw new ErrorException("Could't save file [{$filename}]");
-
         if ($permissions != null)
             chmod($filename, $permissions);
         return $this;
@@ -201,13 +200,14 @@ class Image {//\SplSubject
      * Output image to browser or stdout
      * 
      * @uses Image::saveOrOutput()
-     * @param bool|int $imageType type of image or false for the same as source (also send headers)
+     * @param bool|int $imageType type of image or false for the same as source
      * @param bool|int $quality   quality or compression level
+     * @param bool     $headers   emit http headers
      * @return Image
      * @throws ErrorException
      */
-    public function output($imageType = false, $quality = false) {
-        if ($this->saveOrOutput(null, $imageType, $quality) === false)
+    public function output($imageType = false, $quality = false, $headers = true) {
+        if ($this->saveOrOutput(null, $imageType, $quality, $headers) === false)
             throw new ErrorException("Could't output image to browser");
         return $this;
     }
@@ -215,36 +215,75 @@ class Image {//\SplSubject
     /**
      * Save to disk or output image to browser (only jpg, png, gif)
      * 
-     * @param bool|string $filename  filepath or false for the same as source, null for output
-     * @param bool|int    $imageType type of image or false for the same as source (also send headers)
-     * @param bool|int    $quality   quality or compression level
+     * @param bool|string     $filename  filepath or false for the same as source, null for output
+     * @param bool|int|string $imageType type of image (IMAGETYPE_) or false for the same as source
+     * @param bool|int        $quality   quality for jpg [1-100] defaults to 85 
+     *                                   or compression level for png [0-9] defaults to 6
+     * @param bool|string     $headers   emit mimetype http headers for output, also attachment name
      * @return bool success or failure
      * @throws InvalidArgumentException
      */
-    private function saveOrOutput($filename = false, $imageType = false, $quality = false /* 85 | 6 */) {
-        if ($filename === false)
+    private function saveOrOutput($filename = false, $imageType = false, $quality = false, $headers = true) {
+        if ($filename === false) {
+            if ($this->sourceFile === "")
+                throw new InvalidArgumentException('Filepath for new image must be set');
             $filename = $this->sourceFile;
+        }
 
-        if (empty($this->sourceFile))
-            $this->sourceFile = $filename;
-
-        if ($imageType === false)
+        if ($imageType === false) {
             $imageType = $this->imageType;
+        } elseif (is_string($imageType)) {
+            switch (strtolower($imageType)) {
+                case 'jpg':
+                case 'jpeg': $imageType = IMAGETYPE_JPEG;
+                    break;
+                case 'png': $imageType = IMAGETYPE_PNG;
+                    break;
+                case 'gif': $imageType = IMAGETYPE_GIF;
+                    break;
+            }
+        }
 
         if (!in_array($imageType, array(IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_GIF)))
             throw new InvalidArgumentException("Image type [$imageType] not supported");
 
-        if (is_null($filename))
-            header('Content-Type: ' . image_type_to_mime_type($imageType));
+        if ($filename === null) {
+            if ($headers)
+                header('Content-Type: ' . image_type_to_mime_type($imageType));
+            if (is_string($headers)) {
+                header("Content-Disposition: attachment; filename=" . urlencode($headers));
+                header("Content-Type: application/force-download");
+                header("Content-Type: application/octet-stream");
+                header("Content-Type: application/download");
+                header("Content-Description: File Transfer");
+                if (($this->sourceFile === $filename) && is_readable($filename))
+                    header("Content-Length: " . filesize($filename));
+            }
+        } else {
+            $info      = pathinfo($filename);
+            $extByPath = &$info['extension'];
+            $extByMime = str_replace('jpeg', 'jpg', image_type_to_extension($imageType, false));
+            if (isset($extByPath)) {
+                if (str_replace('jpeg', 'jpg', $extByPath) !== $extByMime)
+                    trigger_error("Specified file extension [{$extByPath}] doesn't match it's type [{$extByMime}]");
+            } else {//append extension
+                $filename = "{$filename}.{$extByMime}";
+            }
+        }
 
         switch ($imageType) {
-            case IMAGETYPE_JPEG:
-                return imagejpeg($this->handle, $filename, $quality ? $quality : 85);
-            case IMAGETYPE_GIF:
-                return imagegif($this->handle, $filename);
-            case IMAGETYPE_PNG:
-                return imagepng($this->handle, $filename, $quality ? $quality : 6);
+            case IMAGETYPE_JPEG: $success = imagejpeg($this->handle, $filename, $quality ? $quality : 85);
+                break;
+            case IMAGETYPE_GIF: $success = imagegif($this->handle, $filename);
+                break;
+            case IMAGETYPE_PNG: $success = imagepng($this->handle, $filename, $quality ? $quality : 6);
+                break;
         }
+        if ($success && $filename !== null) {
+            $this->sourceFile = $filename;
+            $this->imageType  = $imageType;
+        }
+        return $success;
     }
 
     /**
@@ -252,7 +291,7 @@ class Image {//\SplSubject
      * 
      * @return resource
      */
-    public function getHandle() {
+    private function getHandle() {
         return $this->handle;
     }
 
@@ -318,7 +357,7 @@ class Image {//\SplSubject
      * 
      * @see imagecolortransparent
      * @param mixed $color 
-     * @return bool
+     * @return int
      */
     public function setTransparentColor($color = null) {
         return imagecolortransparent($this->handle, Color::index($color));
@@ -464,6 +503,7 @@ class Image {//\SplSubject
      * @param int   $ignoreTransparent If set and non-zero, transparent colors 
      *                                 are ignored (otherwise kept).
      * @return Image
+     * @throws RuntimeException
      */
     function rotate($angle, $bgColor = null, $ignoreTransparent = 0) {
         $angle = -floatval($angle);
@@ -474,7 +514,8 @@ class Image {//\SplSubject
             return $this;
 
         $bgColor = $bgColor === null ? $this->getTransparentColor(true) : Color::get($bgColor);
-        $rotated = imagerotate($this->handle, $angle, $bgColor->toInt(), $ignoreTransparent);
+        if (false === ($rotated = imagerotate($this->handle, $angle, $bgColor->toInt(), $ignoreTransparent)))
+            throw new RuntimeException('Rotate operation failed');
         $this->replaceImage($rotated);
         return $this;
     }
@@ -744,10 +785,10 @@ class Image {//\SplSubject
      */
     public function replaceImage($newImage) {
         if ($newImage instanceof Image)
-            $newImage = $newImage->getHandle();
+            $newImage = $newImage->getHandle(); //copyAsTrueColorGDImage() ?
 
-        if (!self::isValidImageHandle($this->handle))
-            throw new ErrorException("Invalid image handle.");
+        if (!self::isValidImageHandle($newImage))
+            throw new ErrorException("Invalid image handle");
         imagedestroy($this->handle);
         $this->handle = $newImage;
         $this->updateCanvas();
@@ -760,8 +801,8 @@ class Image {//\SplSubject
      * @return Canvas
      */
     public function getCanvas() {
-        if ($this->canvas == null)
-            $this->canvas = new Canvas($this);
+        if ($this->canvas === null)
+            $this->canvas = new Canvas($this->handle, false);
         return $this->canvas;
     }
 
@@ -770,9 +811,9 @@ class Image {//\SplSubject
      * 
      * @return Image
      */
-    public function updateCanvas() {
+    private function updateCanvas() {
         if (isset($this->canvas))
-            $this->canvas->updateHandle($this);
+            $this->canvas->updateHandle($this->handle, false);
         return $this;
     }
 
@@ -780,14 +821,52 @@ class Image {//\SplSubject
      * Make a copy of image
      * 
      * @return resource clone image handle
+     * @throws RuntimeException
      */
     public function copyAsTrueColorGDImage() {
         $width    = $this->getWidth();
         $height   = $this->getHeight();
         $bg       = $this->getTransparentColor(true);
         $newImage = self::createTrueColor($width, $height, $bg);
-        imagecopy($newImage, $this->handle, 0, 0, 0, 0, $width, $height);
+        if (false === imagecopy($newImage, $this->handle, 0, 0, 0, 0, $width, $height))
+            throw new RuntimeException('Copy operation failed');
         return $newImage;
+    }
+
+    /**
+     * Return html tags for image
+     * 
+     * @return string
+     */
+    public function html() {
+        return "<img src=\"{$this->sourceFile}\" alt=\"\" />";
+    }
+
+    /**
+     * Returns image stream (as data-url)
+     * 
+     * @uses Image::saveOrOutput()
+     * @param bool|int $imageType type of image or false for the same as source (also send headers)
+     * @param bool|int $quality   quality or compression level
+     * @return string
+     * @throws ErrorException
+     */
+    public function encode($imageType = false, $quality = false /* 85 | 6 */) {
+        try {
+            ob_start();
+            if (false === $this->saveOrOutput(null, $imageType, $quality, false))
+                throw new ErrorException("Encoding image failed");
+            $binary = ob_get_contents();
+            ob_end_clean();
+        } catch (Exception $exc) {
+            ob_end_clean();
+            throw $exc;
+        }
+
+        if ($imageType === false)
+            $imageType = $this->imageType;
+
+        return sprintf('data:%s;base64,%s', image_type_to_mime_type($imageType), base64_encode($binary));
     }
 
     public function __clone() {
@@ -795,8 +874,13 @@ class Image {//\SplSubject
         $this->canvas = null;
     }
 
+    /**
+     * Returns image stream
+     *
+     * @return string
+     */
     public function __toString() {
-        return "<img src=\"{$this->sourceFile}\" alt=\"\">";
+        return $this->encode();
     }
 
 }

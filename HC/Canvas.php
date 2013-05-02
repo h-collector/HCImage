@@ -22,7 +22,7 @@ use ReflectionFunction;
  * @link    http://hcoll.onuse.pl/projects/view/HCImage
  * @method  bool colorAt(int $x, int $y)
  * @method  bool ellipse(int $cx, int $cy, int $width, int $height, int $color)
- * @method  bool filledArc(int $cx, int $cy, int $width, int $height, int $start, int $end, int $color)
+ * @method  bool filledArc(int $cx, int $cy, int $width, int $height, int $start, int $end, int $color, int $style)
  * @method  bool filledEllipse(int $cx, int $cy, int $width, int $height, int $color)
  * @method  bool filledPolygon(int[] $points, int $num_points, int $color)
  * @method  bool filledRectangle(int $x1, int $y1, int $x2, int $y2, int $color)
@@ -34,18 +34,20 @@ use ReflectionFunction;
  * @method  bool setPixel(int $x, int $y, int $color)
  * @method  bool string(int $font, int $x, int $y, string $string, int $color)
  * @method  bool stringUp(int $font, int $x, int $y, string $string, int $color)
+ * @method  int  colorAllocate(int $red, int $green, int $blue)
  * @method  int  colorAllocateAlpha(int $red, int $green, int $blue, int $alpha)
  * @method  bool layerEffect(int $effect)
  * @method  mixed .*(mixed $params,..) mixed image*($this->handle, mixed $params,..)
  */
 class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserver
 
-    private /* @var int  */ $handle      = null,
-            /* @var int  */ $width       = 0,
-            /* @var int  */ $height      = 0,
-            /* @var int  */ $offset      = 0,
-            /* @var bool */ $blendmode   = true,
-            /* @var int  */ $transparent = 0x7f000000;
+    private /* @var int  */ $handle    = null,
+            /* @var bool */ $ownHandle = false,
+            /* @var int  */ $width     = 0,
+            /* @var int  */ $height    = 0,
+            /* @var int  */ $offset    = 0,
+            /* @var bool */ $blendmode = true,
+            /* @var int  */ $clear     = 0x7f000000;
 
     /**
      * Break pixel operation if returned from callback 
@@ -54,8 +56,17 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
 
     const BREAK_OP = 'break';
 
-    public function __construct(Image $image) {
-        $this->updateHandle($image);
+    /**
+     * @param resource $handle gd resource handle
+     * @param bool $ownHandle if should destroy handle on destruct
+     */
+    public function __construct($handle, $ownHandle = true) {
+        $this->updateHandle($handle, $ownHandle);
+    }
+
+    public function __destruct() {
+        if ($this->ownHandle)
+            imagedestroy($this->handle);
     }
 
     /**
@@ -64,9 +75,10 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
      * @param string $method method name
      * @param array  $p      arguments
      * @return mixed return function result
+     * @throws BadFunctionCallException|ErrorException
      */
     public function __call($method, $p) {
-        if (!Image::isValidImageHandle($this->handle))
+        if (!is_resource($this->handle))
             throw new ErrorException("Invalid image handle.");
 
         $func = 'image' . $method;
@@ -80,28 +92,59 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
                 case 5: return $func($this->handle, $p[0], $p[1], $p[2], $p[3], $p[4]);
                 case 6: return $func($this->handle, $p[0], $p[1], $p[2], $p[3], $p[4], $p[5]);
                 case 7: return $func($this->handle, $p[0], $p[1], $p[2], $p[3], $p[4], $p[5], $p[6]);
-                default: array_unshift($p, $this->handle);
-                    return call_user_func_array($func, $p);
+                default: $return = call_user_func_array($func, array_merge((array) $this->handle, $p));
+                    $this->updateHandle($this->handle, $this->ownHandle); //eg imagecopyresized or resampled
+                    return $return;
             }
         }
-        else
-            throw new BadFunctionCallException("Function doesn't exist: {$func}.");
+        throw new BadFunctionCallException("Function doesn't exist: {$func}.");
     }
 
     /**
-     * Update internals, used by Image
+     * Update internals
+     * Should not be used if owned by Image instance
      * 
-     * @param Image $image new Image object
-     * @return Image
+     * @param resource $handle gd resource handle
+     * @param bool $ownHandle if should destroy handle on destruct
+     * @return Canvas
      */
-    public function updateHandle(Image $image) {
-        if (($this->transparent = $image->getTransparentColor()) === -1)
-            $this->transparent = $image->setTransparentColor();
+    public function updateHandle($handle, $ownHandle = true) {
+        if (!is_resource($handle) || get_resource_type($handle) !== 'gd')
+            throw new InvalidArgumentException("Invalid image handle");
 
-        $this->handle = $image->getHandle();
-        $this->width  = $image->getWidth();
-        $this->height = $image->getHeight();
+        //imagecolortransparent($handle, $this->clear);
+        if (($transparent = imagecolortransparent($handle)) !== -1)
+            $this->clear = $transparent;
+
+        $this->handle    = $handle;
+        $this->ownHandle = $ownHandle;
+        $this->width     = imagesx($handle);
+        $this->height    = imagesy($handle);
         return $this;
+    }
+
+    /**
+     * Return shareable handle
+     * 
+     * @return resource
+     * @throws ErrorException
+     */
+    public function getHandle() {
+        if ($this->ownHandle)
+            trigger_error('This image handle is owned');
+        return $this->handle;
+    }
+
+    /**
+     * Destroy owned image handle
+     * 
+     * @return bool
+     * @throws ErrorException
+     */
+    public function destroy() {
+        if (!$this->ownHandle)
+            throw new ErrorException('Cannot destroy not owned image');
+        return imagedestroy($this->handle);
     }
 
     /**
@@ -141,7 +184,7 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
      * @param int      $mode       force return color for callback as 0-Color, 1-index, 2-0, 
      *                             by default automatic (and $rgb = unused -> 2)
      * @throws InvalidArgumentException
-     * @return Image
+     * @return Canvas
      */
     public function pixelOperation($operation, array $forOpts = array(), $returnMode = 3, $mode = 0) {
         if (!is_callable($operation))
@@ -288,7 +331,7 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
         $x = (int) ($offset % $this->width);
         $y = (int) ($offset / $this->width);
         imagealphablending($this->handle, false);
-        imagesetpixel($this->handle, $x, $y, $this->transparent);
+        imagesetpixel($this->handle, $x, $y, $this->clear);
         imagealphablending($this->handle, $this->blendmode);
     }
 
@@ -345,4 +388,3 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
     }
 
 }
-
