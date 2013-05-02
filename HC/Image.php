@@ -202,7 +202,7 @@ class Image {//\SplSubject
      * @uses Image::saveOrOutput()
      * @param bool|int $imageType type of image or false for the same as source
      * @param bool|int $quality   quality or compression level
-     * @param bool     $headers   emit http headers
+     * @param bool     $headers   emit mimetype http headers for output, also attachment name
      * @return Image
      * @throws ErrorException
      */
@@ -811,7 +811,7 @@ class Image {//\SplSubject
      * 
      * @return Image
      */
-    private function updateCanvas() {
+    public function updateCanvas() {
         if (isset($this->canvas))
             $this->canvas->updateHandle($this->handle, false);
         return $this;
@@ -880,7 +880,11 @@ class Image {//\SplSubject
      * @return string
      */
     public function __toString() {
-        return $this->encode();
+        try {
+            return $this->encode();
+        } catch (Exception $exc) {
+            return $exc->getMessage();
+        }
     }
 
 }
