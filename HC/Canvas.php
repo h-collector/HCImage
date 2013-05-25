@@ -34,9 +34,10 @@ use ReflectionFunction;
  * @method  bool setPixel(int $x, int $y, int $color)
  * @method  bool string(int $font, int $x, int $y, string $string, int $color)
  * @method  bool stringUp(int $font, int $x, int $y, string $string, int $color)
+ * @method  bool layerEffect(int $effect)
+ * @method  bool truecolorToPalette(bool $dither, int $ncolors)
  * @method  int  colorAllocate(int $red, int $green, int $blue)
  * @method  int  colorAllocateAlpha(int $red, int $green, int $blue, int $alpha)
- * @method  bool layerEffect(int $effect)
  * @method  mixed .*(mixed $params,..) mixed image*($this->handle, mixed $params,..)
  */
 class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserver

@@ -192,6 +192,7 @@ final class Color {
             'red, green and blue color indexes accordingly and A is integer ' .
             'value between 0 and 127 for alfa'
             );
+        $color = isset($color[0]) ? $color : array_keys($color);
         return new self($color[0], $color[1], $color[2], ($num === 4 ? $color[3] : 0));
     }
 

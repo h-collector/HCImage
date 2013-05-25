@@ -20,10 +20,11 @@ use stdClass;
  */
 class Image {//\SplSubject
 
-    private /** @var resource */ $handle     = null,
-            /** @var string   */ $imageType  = IMAGETYPE_PNG, //'gd',
-            /** @var string   */ $sourceFile = '',
-            /** @var Canvas   */ $canvas     = null;
+    private /** @var resource */ $handle      = null,
+            /** @var string   */ $imageType   = IMAGETYPE_PNG, //'gd',
+            /** @var string   */ $sourceFile  = '',
+            /** @var Canvas   */ $canvas      = null,
+            /** @var int      */ $transparent = 0;
 
     const /** @var string   */ AUTO = 'auto'; //center merge or crop
 
@@ -31,13 +32,20 @@ class Image {//\SplSubject
      * Create new image from disk, url or binary string
      * 
      * @see Image::load()
-     * @param string $image      path, url or binary string
-     * @param bool   $fromString create image from string
+     * @param string|resource|Canvas|Image $image      filepath, url binary string, 
+     *                                                 Image to copy, Canvas to own
+     * @param bool                         $fromString create image from string
+     * @param bool                         $forceAlpha try to add/preserve alpha channel
      * @throws InvalidArgumentException
      */
 
-    public function __construct($image, $fromString = false) {
-        if (self::isValidImageHandle($image)) {
+    public function __construct($image, $fromString = false, $forceAlpha = true) {
+        if ($image instanceof Image) {//clone image
+            $this->handle = $image->copyAsTrueColorGDImage($forceAlpha);
+        } elseif ($image instanceof Canvas) {
+            $this->handle = $image->getHandle();
+            $this->canvas = $image;
+        } elseif (self::isValidImageHandle($image)) {
             $this->handle = $image;
         } elseif ($fromString) {
             $this->loadFromString($image);
@@ -47,10 +55,11 @@ class Image {//\SplSubject
         else
             throw new InvalidArgumentException('Unknown image data');
 
-        if (!imageistruecolor($this->handle)) {//allways 32bit color, more RAM, but alpha channel
-            $this->replaceImage($this->copyAsTrueColorGDImage());
-        } else {
+        if (imageistruecolor($this->handle)) {
             imagesavealpha($this->handle, true);
+        } elseif ($forceAlpha) {
+            //imagepalettetotruecolor 
+            $this->replaceImage($this->copyAsTrueColorGDImage($forceAlpha));
         }
     }
 
@@ -83,7 +92,7 @@ class Image {//\SplSubject
      */
     private static function createTrueColor($width, $height, $bg = null) {
         $handle = imagecreatetruecolor((int) $width, (int) $height);
-        imagefill($handle, 0, 0, Color::index($bg));
+        $bg !== -1 && imagefill($handle, 0, 0, Color::index($bg));
         imagesavealpha($handle, true);
         return $handle;
     }
@@ -94,11 +103,12 @@ class Image {//\SplSubject
      * @uses Image::loadFromString() autodetected if not resource
      * @uses Image::loadFromFile()
      * @param string $image      path, url or binary string
+     * @param bool   $forceAlpha try to add/preserve alpha channel
      * @throws InvalidArgumentException
      * @return Image
      */
-    public static function load($image) {
-        return new self($image, is_string($image) && !ctype_print($image));
+    public static function load($image, $forceAlpha = true) {
+        return new self($image, is_string($image) && !ctype_print($image), $forceAlpha);
     }
 
     /**
@@ -113,6 +123,7 @@ class Image {//\SplSubject
 
     /**
      * Load image from binary string
+     * (does not convert to 32bit truecolor)
      * 
      * @see finfo
      * @see imagecreatefromstring
@@ -137,6 +148,7 @@ class Image {//\SplSubject
 
     /**
      * Load image from disk or url
+     * (does not convert to 32bit truecolor)
      * 
      * @see exif_imagetype
      * @see getimagesize
@@ -150,11 +162,11 @@ class Image {//\SplSubject
         if (!is_file($filename) && strpos($filename, 'http://') !== 0)
             throw new InvalidArgumentException("Image file [{$filename}] not found");
 
-        if (!function_exists('exif_imagetype')) {
+        if (function_exists('exif_imagetype')) {
+            $this->imageType = exif_imagetype($filename);
+        } else {
             $imageInfo       = getimagesize($filename);
             $this->imageType = $imageInfo[2];
-        } else {
-            $this->imageType = exif_imagetype($filename);
         }
 
         switch ($this->imageType) {
@@ -181,10 +193,11 @@ class Image {//\SplSubject
      * 
      * @uses Image::saveOrOutput()
      * @see chmod
-     * @param bool|string $filename  filepath or false for the same as source
-     * @param bool|int    $imageType type of image or false for the same as source
-     * @param bool|int    $quality   quality or compression level
-     * @param int $permissions       changes file mode
+     * @param bool|string     $filename     filepath or false for the same as source
+     * @param bool|int|string $imageType    type of image or false for the same as source
+     * @param bool|int        $quality      quality or compression level 
+     *                                      (9 for png also apply all compression filters)
+     * @param int             $permissions  changes file mode
      * @return Image
      * @throws ErrorException
      */
@@ -200,7 +213,8 @@ class Image {//\SplSubject
      * Output image to browser or stdout
      * 
      * @uses Image::saveOrOutput()
-     * @param bool|int $imageType type of image or false for the same as source
+     * @param bool|int|string $imageType type of image (IMAGETYPE_ or one of ext: png, jpg, gif) 
+     *                                   or false for the same as source
      * @param bool|int $quality   quality or compression level
      * @param bool     $headers   emit mimetype http headers for output, also attachment name
      * @return Image
@@ -216,9 +230,11 @@ class Image {//\SplSubject
      * Save to disk or output image to browser (only jpg, png, gif)
      * 
      * @param bool|string     $filename  filepath or false for the same as source, null for output
-     * @param bool|int|string $imageType type of image (IMAGETYPE_) or false for the same as source
+     * @param bool|int|string $imageType type of image (IMAGETYPE_ or one of ext: png, jpg, gif) 
+     *                                   or false for the same as source
      * @param bool|int        $quality   quality for jpg [1-100] defaults to 85 
      *                                   or compression level for png [0-9] defaults to 6
+     *                                   (9 for png also apply all compression filters)
      * @param bool|string     $headers   emit mimetype http headers for output, also attachment name
      * @return bool success or failure
      * @throws InvalidArgumentException
@@ -233,15 +249,7 @@ class Image {//\SplSubject
         if ($imageType === false) {
             $imageType = $this->imageType;
         } elseif (is_string($imageType)) {
-            switch (strtolower($imageType)) {
-                case 'jpg':
-                case 'jpeg': $imageType = IMAGETYPE_JPEG;
-                    break;
-                case 'png': $imageType = IMAGETYPE_PNG;
-                    break;
-                case 'gif': $imageType = IMAGETYPE_GIF;
-                    break;
-            }
+            $imageType = self::extensionToImageType($imageType);
         }
 
         if (!in_array($imageType, array(IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_GIF)))
@@ -276,7 +284,10 @@ class Image {//\SplSubject
                 break;
             case IMAGETYPE_GIF: $success = imagegif($this->handle, $filename);
                 break;
-            case IMAGETYPE_PNG: $success = imagepng($this->handle, $filename, $quality ? $quality : 6);
+            case IMAGETYPE_PNG:
+                $quality = $quality ? $quality : 6;
+                $filters = $quality === 9 ? PNG_ALL_FILTERS : null;
+                $success = imagepng($this->handle, $filename, $quality, $filters);
                 break;
         }
         if ($success && $filename !== null) {
@@ -284,6 +295,21 @@ class Image {//\SplSubject
             $this->imageType  = $imageType;
         }
         return $success;
+    }
+
+    /**
+     * 
+     * @param string $extension
+     * @return string|int
+     */
+    public static function extensionToImageType($extension) {
+        switch (strtolower($extension)) {
+            case 'jpg':
+            case 'jpeg': return IMAGETYPE_JPEG;
+            case 'png': return IMAGETYPE_PNG;
+            case 'gif': return IMAGETYPE_GIF;
+            default: return $extension;
+        }
     }
 
     /**
@@ -340,13 +366,15 @@ class Image {//\SplSubject
      * @param bool $returnObj return color object or index
      * @return Color|int
      */
-    public function getTransparentColor($returnObj = false) {
+    public function getTransparentColor($returnObj = false, $noAlpha = false) {
         $color = imagecolortransparent($this->handle);
+        if ($noAlpha)
+            $color = ($color === -1) ? $this->transparent : $color & 0x00ffffff;
         if ($returnObj) {
             if ($color === -1) {
                 $color = Color::clear();
             } else {
-                $color = Color::fromInt(imagecolorsforindex($this->handle, $color));
+                $color = Color::fromInt($color);
             }
         }
         return $color;
@@ -360,7 +388,8 @@ class Image {//\SplSubject
      * @return int
      */
     public function setTransparentColor($color = null) {
-        return imagecolortransparent($this->handle, Color::index($color));
+        $this->transparent = Color::index($color);
+        return imagecolortransparent($this->handle, $this->transparent);
     }
 
     /**
@@ -605,7 +634,15 @@ class Image {//\SplSubject
                 return $this;
             case -1: $func = 'imagecopymergegray';
                 break;
-            default: $func = 'imagecopymerge';
+            default:
+//                $cut = self::createTrueColor($pct, $height);
+//                // copying relevant section from background to the cut resource 
+//                imagecopy($cut, $dst_im, 0, 0, $dst_x, $dst_y, $src_w, $src_h);
+//                // copying relevant section from watermark to the cut resource 
+//                imagecopy($cut, $src_im, 0, 0, $src_x, $src_y, $src_w, $src_h);
+//                // insert cut resource to destination image 
+//                imagecopymerge($dst_im, $cut, $dst_x, $dst_y, 0, 0, $src_w, $src_h, $pct);
+                $func = 'imagecopymerge';
                 break;
         }
         if (false === $func($this->handle, $image->handle
@@ -625,6 +662,12 @@ class Image {//\SplSubject
      * @throws RuntimeException
      */
     public function flip($vertical = true) {
+        if (function_exists('imageflip')) {//php 5.5
+            if (false === imageflip($this->handle, $vertical ? IMG_FLIP_VERTICAL : IMG_FLIP_HORIZONTAL))
+                throw new RuntimeException('Image flip operation failed');
+            return $this;
+        }
+
         $width  = $this->getWidth();
         $height = $this->getHeight();
         $dest   = self::createTrueColor($width, $height);
@@ -820,16 +863,30 @@ class Image {//\SplSubject
     /**
      * Make a copy of image
      * 
+     * @param bool $preferAlphaChannel prefer alpha channel over single transparent color
      * @return resource clone image handle
      * @throws RuntimeException
      */
-    public function copyAsTrueColorGDImage() {
-        $width    = $this->getWidth();
-        $height   = $this->getHeight();
-        $bg       = $this->getTransparentColor(true);
+    public function copyAsTrueColorGDImage($preferAlphaChannel = true) {
+        $width  = $this->getWidth();
+        $height = $this->getHeight();
+        $bg     = $this->getTransparentColor(true)->toInt();
+        if (($bg & 0x7f000000) === 0 && $preferAlphaChannel) {
+            $this->transparent = $bg; //save old transparent color
+            $bg |= 0x7f000000;
+        }
         $newImage = self::createTrueColor($width, $height, $bg);
         if (false === imagecopy($newImage, $this->handle, 0, 0, 0, 0, $width, $height))
             throw new RuntimeException('Copy operation failed');
+
+        //copy and save transparency
+        if ($bg & 0x7f000000) {
+//            imagealphablending($newImage, false);
+            imagesavealpha($newImage, true);
+        } else {//one color transparency
+            imagesavealpha($newImage, false);
+            imagecolortransparent($newImage, $bg);
+        }
         return $newImage;
     }
 
@@ -847,11 +904,17 @@ class Image {//\SplSubject
      * 
      * @uses Image::saveOrOutput()
      * @param bool|int $imageType type of image or false for the same as source (also send headers)
-     * @param bool|int $quality   quality or compression level
+     * @param bool|int $quality   quality for jpg [1-100] defaults to 85 
+     *                            or compression level for png [0-9] defaults to 6
      * @return string
      * @throws ErrorException
      */
     public function encode($imageType = false, $quality = false /* 85 | 6 */) {
+        if ($imageType === false) {
+            $imageType = $this->imageType;
+        } elseif (is_string($imageType)) {
+            $imageType = self::extensionToImageType($imageType);
+        }
         try {
             ob_start();
             if (false === $this->saveOrOutput(null, $imageType, $quality, false))
@@ -862,9 +925,6 @@ class Image {//\SplSubject
             ob_end_clean();
             throw $exc;
         }
-
-        if ($imageType === false)
-            $imageType = $this->imageType;
 
         return sprintf('data:%s;base64,%s', image_type_to_mime_type($imageType), base64_encode($binary));
     }
