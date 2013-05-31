@@ -2,6 +2,10 @@
 
 namespace HC;
 
+use HC\Helper\Filter;
+use HC\Helper\PixelOps;
+use HC\Helper\Convolution;
+
 use Countable;
 use ArrayAccess;
 use SeekableIterator;
@@ -155,10 +159,13 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
      * Set blend mode
      * 
      * @see alphablending
-     * @param bool $blendmode enable or disable
+     * @param bool $blendmode enable or disable.
+     *             On true color images the default value is true otherwise the default value is false
      * @return bool   
      */
     public function alphaBlending($blendmode) {
+//        if($blendmode === false) 
+//            return $this->blendmode === null ? $this->isTrueColor() : $this->blendmode;
         $this->blendmode = $blendmode;
         return imagealphablending($this->handle, $blendmode);
     }
@@ -214,7 +221,7 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
     }
 
     /**
-     * Per pixel operations on image canvas
+     * Per pixel operations on image canvas, before use set appropriate alpha blending
      * 
      * Optimized for speed method to do get and set operations on separate pixels using callback
      * 
@@ -238,7 +245,7 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
         $endX   = $this->width;
         $endY   = $this->height;
         $opts   = array('beginX', 'beginY', 'dX', 'dY', 'endX', 'endY');
-        extract(array_intersect_key($forOpts, array_flip($opts)));
+        extract(array_intersect_key(array_map('intval', $forOpts), array_flip($opts)));
 
         if (max($beginX, $endX) > $this->width 
                 || max($beginY, $endY) > $this->height 
@@ -264,8 +271,7 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
             var_dump($reflection->getStaticVariables());
             if (preg_match('/]=>\n\s+(&|object)/', ob_get_clean()) || $paramsCount > 1)
                 $cache = false;
-        } else {
-            $cached = array();
+            else $cached = array();
         }
 
         if ($returnMode === 3 && $mode === 0)
@@ -280,12 +286,15 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
         if (3 <= $paramsCount)   $params .= ',$y';
         if (4 <= $paramsCount)   $params .= ',$handle';
         if (5 <= $paramsCount)   $params .= str_repeat(',0', $paramsCount - 4);
+        
+        $stepX = $dX === 1 ? '++$x' : '$x+=$dX';
+        $stepY = $dY === 1 ? '++$y' : '$y+=$dY';
 
         $call = 'if (($pixel = $operation(' . $params . ')) === \'' . self::BREAK_OP . '\') break 2;';
         $loop = 'namespace ' . __NAMESPACE__ . ';';
-        $loop .= 'for ($y = $beginY; $y < $endY; $y+=$dY) { for ($x = $beginX; $x < $endX; $x+=$dX) {';
+        $loop .= 'for ($y = $beginY; $y < $endY; ' . $stepY . ') { for ($x = $beginX; $x < $endX; ' . $stepX . ') {';
         switch ($mode) {
-            case 2:         $loop.= $call;
+            case 2: $loop.= $call;
                 break;
             case 1:         $loop.= '$rgb = imagecolorat($handle, $x, $y);';
                 if ($cache) $loop.='if(isset($cached[$rgb])) $pixel = $cached[$rgb]; else {';
@@ -340,13 +349,46 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
     }
     
     /**
+     * Use helper filter class on canvas
+     * Note: Sets imagealphablending to false
      * 
-     * Use helpher filter on canvas
      * @see imagefilter,imageconvolution,Canvas::pixelOperation
      * @return Filter
      */
     public function useFilter() {
         return new Filter($this->handle);
+    }
+    
+    /**
+     * Use helper Convolution class on canvas
+     * Note: Sets imagealphablending to false
+     * 
+     * @see imagefilter,imageconvolution,Canvas::pixelOperation
+     * @return Convolution
+     */
+    public function useConvolution() {
+        return new Convolution($this->handle);
+    }
+    
+    
+    /**
+     * Apply predefined Canvas::pixelOperation (one time)
+     * Note: Sets imagealphablending to false
+     * 
+     * @see Canvas::pixelOperation
+     * @param int  $beginX
+     * @param int  $beginY
+     * @param int  $endX   canvas full height if null
+     * @param int  $endY   canvas full height if null
+     * @param int  $stepX
+     * @param int  $stepY
+     * @param bool $cache
+     * @return PixelOps
+     */
+    public function usePixelOps(
+            $beginX = 0, $beginY = 0, $endX = null, $endY = null, $stepX = 1, $stepY = 1, 
+            $cache = false) {
+        return PixelOps::on($this, $beginX, $beginY, $endX, $endY, $stepX, $stepY, $cache);
     }
 
     /**

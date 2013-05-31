@@ -1,15 +1,15 @@
 <?php
 
-namespace HC;
+namespace HC\Helper;
 
 use InvalidArgumentException;
 use OutOfBoundsException;
 use RuntimeException;
 
 /**
- * Helpher class, wrapper around imagefilter
+ * Helper class, wrapper around imagefilter
  *
- * @package HC
+ * @package HC\Helper
  * @author  h-collector <githcoll@gmail.com>
  *          
  * @link    http://hcoll.onuse.pl/projects/view/HCImage
@@ -20,6 +20,7 @@ class Filter {
     private $handle = null;
 
     /**
+     * Note: Sets imagealphablending to false
      * 
      * @param resource $handle
      * @throws InvalidArgumentException
@@ -28,6 +29,7 @@ class Filter {
         if (!is_resource($handle) || get_resource_type($handle) !== 'gd')
             throw new InvalidArgumentException("Invalid image handle");
         $this->handle = $handle;
+        imagealphablending($handle, false);
     }
 
     /**

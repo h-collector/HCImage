@@ -1,88 +1,86 @@
 <?php
 
-namespace HC;
+namespace HC\Helper;
 
+use HC\Canvas;
+use HC\Color;
 use InvalidArgumentException;
 
 /**
- * Some useful methods for Canvas::pixelOperation and Canvas::convolution
+ * Some useful methods for Canvas::pixelOperation
  *
- * @package HC
+ * @package HC\Helper
  * @author  h-collector <githcoll@gmail.com>
  *          
  * @link    http://hcoll.onuse.pl/view/HCImage
  * @license GNU LGPL (http://www.gnu.org/copyleft/lesser.html)
+ * 
+ * @method HC\Canvas transparency($alpha)
+ * @method HC\Canvas saltAndPepper($factor = 20, $salt = 0x00ffffff, $pepper = 0x00000000)
+ * @method HC\Canvas noise($factor = 100)
+ * @method HC\Canvas swapColor($swap = 'rgb')
+ * @method HC\Canvas filterHue(Color $color)
  */
 class PixelOps {
 
-    /**#@+ @var string */
-    const MAT_MEAN_REMOVAL  = 'mean removal (sharpen)';
-    const MAT_SHARPEN       = 'sharpen';
-    const MAT_SHARPEN_NICE  = 'sharpen nice';
-    const MAT_UNSHARPEN     = 'unsharpen';
-    const MAT_DILATE        = 'dilate';
-    const MAT_BLUR          = 'blur';
-    const MAT_EMBOSS        = 'emboss';
-    const MAT_EMBOSS_SUBTLE = 'emboss subtle';
-    const MAT_EDGE_DETECT   = 'edge detect';
-    const MAT_EDGE_DETECT2  = 'edge detect2';
-    /**#@-*/
+    private $canvas  = null,
+            $forOpts = array(),
+            $cache   = false;
 
+    private function __construct(Canvas $canvas, $forOpts, $cache) {
+        $this->canvas  = $canvas;
+        $this->forOpts = $forOpts;
+        $this->cache   = $cache;
+    }
+    
     /**
-     * Get Convolution matrix by type
+     * Apply predefined Canvas::pixelOperation (one time)
+     * Note: Sets imagealphablending to false
      * 
-     * @see imagefilter,imageconvolution,imagelayer
-     * @param string $type type of matrix
-     * @return array float|int[3][3]
+     * @param Canvas $canvas
+     * @param int  $beginX
+     * @param int  $beginY
+     * @param int  $endX   canvas full width if null
+     * @param int  $endY   canvas full height if null
+     * @param int  $stepX
+     * @param int  $stepY
+     * @param bool $cache
+     * @return PixelOps
      */
-    public static function getConvMatrix($type) {
-        switch ($type) {
-            case self::MAT_MEAN_REMOVAL://IMG_FILTER_MEAN_REMOVAL
-                return array(
-                    array(-1, -1, -1), array(-1,  9, -1), array(-1, -1, -1)
-                );
-            case self::MAT_SHARPEN:
-                return array(
-                    array( 0, -2,  0), array(-2, 11, -2), array( 0, -2,  0)
-                );
-            case self::MAT_SHARPEN_NICE:
-                return array(
-                    array(-1.2, -1, -1.2), array(-1.0, 20, -1.0), array(-1.2, -1, -1.2)
-                );
-            case self::MAT_UNSHARPEN://IMG_FILTER_SMOOTH
-                return array(
-                    array(-1, -1, -1), array(-1, 17, -1), array(-1, -1, -1)
-                );
-            case self::MAT_DILATE:
-                return array(
-                    array( 0,  1,  0), array( 1,  1,  1), array( 0,  1,  0)
-                );
-            case self::MAT_BLUR://IMG_FILTER_GAUSSIAN_BLUR
-                return array(
-                    array( 1,  2,  1), array( 2,  4,  2), array( 1,  2,  1)
-                );
-            case self::MAT_EMBOSS://IMG_FILTER_EMBOSS
-                return array(
-                    array( 2,  0,  0), array( 0, -1,  0), array( 0,  0, -1)
-                );
-            case self::MAT_EMBOSS_SUBTLE:
-                return array(
-                    array( 1,  1, -1), array( 1,  3, -1), array( 1, -1, -1)
-                );
-            case self::MAT_EDGE_DETECT://IMG_FILTER_EDGEDETECT
-                return array(
-                    array( 1,  1,  1), array( 1, -7,  1), array( 1,  1,  1)
-                );//offset 127
-            case self::MAT_EDGE_DETECT2:
-                return array(
-                    array(-5,  0,  0), array( 0,  0,  0), array( 0,  0,  5)
-                );
-            default: throw new InvalidArgumentException('Invalid Matix type');
+    public static function on(Canvas $canvas, 
+            $beginX = 0, $beginY = 0, $endX = null, $endY = null, $stepX = 1, $stepY = 1, 
+            $cache = false) {
+        $forOpts = compact('beginX', 'beginY', 'endX', 'endY', 'stepX', 'stepY');
+        $canvas->alphaBlending(false);
+        return new self($canvas, $forOpts, $cache);
+    }
+
+    public function __call($name, $arguments) {
+        $canvas       = $this->canvas;
+        $forOpts      = $this->forOpts;
+        $cache        = $this->cache;
+        $this->canvas = null;//allow chaining?
+
+        if ($forOpts['endX'] === null)
+            $forOpts['endX'] = $canvas->sX();
+        if ($forOpts['endY'] === null)
+            $forOpts['endY'] = $canvas->sY();
+
+        $closure = call_user_func_array(__CLASS__ . '::pixel' . ucfirst($name), $arguments);
+        switch ($name) {
+            case 'transparency':  $mode = 1; break;
+            case 'saltAndPepper': $mode = 0; break;
+            case 'noise':         $mode = 1; break;
+            case 'swapColor':     $mode = 0; break;
+            case 'filterHue':     $mode = 1; break;
+            default:              $mode = 3;
         }
+        $ret = $canvas->pixelOperation($closure, $forOpts, $mode, 0, $cache);
+        return $ret;
     }
 
     /**
-     * Add alpha to image
+     * Add alpha to image, use with caching
      * 
      * @see Canvas::pixelOperation(),Image::merge()
      * 
@@ -96,7 +94,7 @@ class PixelOps {
     }
 
     /**
-     * Add salt and pepper to image
+     * Add salt and pepper to image, dont use with caching
      * 
      * @see Canvas::pixelOperation()
      * @param int $factor how much of salt and pepper to add, where 1 is max
@@ -115,7 +113,7 @@ class PixelOps {
     }
 
     /**
-     * Add rgb noise to image
+     * Add rgb noise to image, dont use with caching
      * 
      * @see Canvas::pixelOperation()
      * @param int $factor how strong noise to add, 255 is max
@@ -130,7 +128,7 @@ class PixelOps {
     }
 
     /**
-     * Swap rgb channels in image
+     * Swap rgb channels in image, use with caching
      * 
      * @see Canvas::pixelOperation()
      * @see Color::rgb()
@@ -160,6 +158,7 @@ class PixelOps {
     }
 
     /**
+     * Hue filter use with caching
      * 
      * @see Canvas::pixelOperation()
      * @param Color $color color to filter

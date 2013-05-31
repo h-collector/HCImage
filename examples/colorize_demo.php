@@ -9,7 +9,7 @@ try {
     $red      = Color::get('red');
     $green    = Color::get('green');
     $orange   = $red->mixWithColor($green);
-    $img      = new Image('Grayscale_8bits_palette_sample_image.png');
+    $img      = new Image('img/Grayscale_8bits_palette_sample_image.png');
     $canvas   = $img->getCanvas();
     $canvas->filter(IMG_FILTER_COLORIZE, $orange->red, $orange->green, $orange->blue);
     $canvas->convolution(array(

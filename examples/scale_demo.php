@@ -4,12 +4,11 @@ include dirname(__DIR__) . '/HCImage.class.php';
 
 use HC\Image;
 use HC\Color;
-use HC\PixelOps;
 
 try {
     //Load Images
     $red  = Color::index('red');
-    $img  = new Image('test_original.gif');
+    $img  = new Image('img/test_original.gif');
     $img2 = clone $img;
     $img3 = clone $img;
 
@@ -22,8 +21,8 @@ try {
         ->merge($img3, $img3->getWidth() * 2, 0)
         ->save('out/scale','png',9);
         
-    $img->scale(200, true)->getCanvas()->convolution(PixelOps::getConvMatrix('dilate'));
-    $img->scale(50,  true)->getCanvas()->convolution(PixelOps::getConvMatrix('sharpen nice')); 
+    $img->scale(200, true)->getCanvas()->useConvolution()->dilate();
+    $img->scale(50,  true)->getCanvas()->useConvolution()->sharpenNice(); 
     $img->save('out/scale2','png',9);
 } catch (Exception $exc) {
     echo $exc->getMessage(), PHP_EOL;

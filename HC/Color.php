@@ -99,7 +99,7 @@ final class Color {
     public static function fromHSV($h, $s, $v, $limit255 = false, $chkRange = true) {
         $limit255 ? $s /= 256.0 : $v *= 255;
         if ($s == 0.0)
-            return new self((int) $v, (int) $v, (int) $v, $chkRange);
+            return new self((int) $v, (int) $v, (int) $v, 0, $chkRange);
         $limit255 ? $h /= (256.0 / 6.0) : $h /= 60.0;
         $i = floor($h);
         $f = $h - $i;
