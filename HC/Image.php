@@ -488,6 +488,7 @@ class Image {//\SplSubject
      * @return Image
      */
     public function scale2x() {
+        $handle   = $this->handle;
         $width    = $this->getWidth();
         $height   = $this->getHeight();
         $bg       = $this->getTransparentColor(true);
@@ -498,14 +499,14 @@ class Image {//\SplSubject
                 $y1 = $y === 0 ? 0 : $y - 1;
                 $x2 = $x === $width - 1 ? $x : $x + 1;
                 $y2 = $y === $height - 1 ? $y : $y + 1;
-                #A (-1,-1)	B (0,-1) C (1,-1)
-                #D (-1,0)	E (0,0)	 F (1,0)
-                #G (-1,1)   H (0,1)	 I (1,1)
-                $B  = imagecolorat($this->handle, $x, $y1);
-                $D  = imagecolorat($this->handle, $x1, $y);
-                $E  = imagecolorat($this->handle, $x, $y);
-                $F  = imagecolorat($this->handle, $x2, $y);
-                $H  = imagecolorat($this->handle, $x, $y2);
+                #A (-1,-1)  B (0,-1) C (1,-1)
+                #D (-1,0)   E (0,0)  F (1,0)
+                #G (-1,1)   H (0,1)  I (1,1)
+                $B  = imagecolorat($handle, $x, $y1);
+                $D  = imagecolorat($handle, $x1, $y);
+                $E  = imagecolorat($handle, $x, $y);
+                $F  = imagecolorat($handle, $x2, $y);
+                $H  = imagecolorat($handle, $x, $y2);
                 if ($B !== $H && $D !== $F) {
                     $E0 = $D === $B ? $D : $E;
                     $E1 = $B === $F ? $F : $E;
@@ -667,18 +668,19 @@ class Image {//\SplSubject
                 throw new RuntimeException('Image flip operation failed');
             return $this;
         }
-
+        
+        $handle = $this->handle;
         $width  = $this->getWidth();
         $height = $this->getHeight();
         $dest   = self::createTrueColor($width, $height);
 
         if ($vertical) {
             for ($i = 0; $i < $height; $i++)
-                if (false === imagecopy($dest, $this->handle, 0, $i, 0, ($height - 1) - $i, $width, 1))
+                if (false === imagecopy($dest, $handle, 0, $i, 0, ($height - 1) - $i, $width, 1))
                     throw new RuntimeException('Vertical flip operation failed');
         } else {
             for ($i = 0; $i < $width; $i++)
-                if (false === imagecopy($dest, $this->handle, $i, 0, ($width - 1) - $i, 0, 1, $height))
+                if (false === imagecopy($dest, $handle, $i, 0, ($width - 1) - $i, 0, 1, $height))
                     throw new RuntimeException('Horizontal flip operation failed');
         }
 
@@ -694,7 +696,8 @@ class Image {//\SplSubject
      * @return stdClass  {l,t,r,b,w,h}
      */
     public function trimmedBox($color = -1) {
-        $color   = $color === -1 ? imagecolorat($this->handle, 0, 0) : Color::index($color);
+        $handle  = $this->handle;
+        $color   = $color === -1 ? imagecolorat($handle, 0, 0) : Color::index($color);
         $width   = $this->getWidth();
         $height  = $this->getHeight();
         $bTop    = 0;
@@ -704,7 +707,7 @@ class Image {//\SplSubject
         //top
         for (; $bTop < $height; ++$bTop)
             for ($x = 0; $x < $width; ++$x)
-                if (imagecolorat($this->handle, $x, $bTop) !== $color)
+                if (imagecolorat($handle, $x, $bTop) !== $color)
                     break 2;
         // return false when all pixels are trimmed
         if ($bTop === $height)
@@ -712,17 +715,17 @@ class Image {//\SplSubject
         // bottom
         for (; $bBottom >= 0; --$bBottom)
             for ($x = 0; $x < $width; ++$x)
-                if (imagecolorat($this->handle, $x, $bBottom) !== $color)
+                if (imagecolorat($handle, $x, $bBottom) !== $color)
                     break 2;
         // left
         for (; $bLeft < $width; ++$bLeft)
             for ($y = $bTop; $y <= $bBottom; ++$y)
-                if (imagecolorat($this->handle, $bLeft, $y) !== $color)
+                if (imagecolorat($handle, $bLeft, $y) !== $color)
                     break 2;
         // right
         for (; $bRight >= 0; --$bRight)
             for ($y = $bTop; $y <= $bBottom; ++$y)
-                if (imagecolorat($this->handle, $bRight, $y) !== $color)
+                if (imagecolorat($handle, $bRight, $y) !== $color)
                     break 2;
         ++$bBottom;
         ++$bRight;
@@ -773,6 +776,7 @@ class Image {//\SplSubject
             'ratio'      => 0
         );
 
+        $srcHandle  = $this->handle;
         $destHandle = $image->getHandle();
         if ($diffImage) {
             $diffImage  = clone $this; //Image::create($width, $height);
@@ -783,7 +787,7 @@ class Image {//\SplSubject
 
             for ($y = 0; $y < $height; ++$y) {
                 for ($x = 0; $x < $width; ++$x) {
-                    $pix1 = imagecolorat($this->handle, $x, $y); //$srcCanvas->colorAt($x, $y);
+                    $pix1 = imagecolorat($srcHandle, $x, $y); //$srcCanvas->colorAt($x, $y);
                     $pix2 = imagecolorat($destHandle, $x, $y); //$dstCanvas->colorAt($x, $y);
                     if ($pix1 !== $pix2) {
                         ++$info['diffPixels'];
@@ -794,7 +798,7 @@ class Image {//\SplSubject
         } else {
             for ($y = 0; $y < $height; ++$y) {
                 for ($x = 0; $x < $width; ++$x) {
-                    if (imagecolorat($this->handle, $x, $y) !== imagecolorat($destHandle, $x, $y))
+                    if (imagecolorat($srcHandle, $x, $y) !== imagecolorat($destHandle, $x, $y))
                         ++$info['diffPixels'];
                 }
             }
@@ -807,13 +811,17 @@ class Image {//\SplSubject
     /**
      * Calculate histogram of image
      * 
-     * @return array number of pixels with specified color
+     * @return array number of pixels with specified color (index  for paletted)
      */
     public function histogram() {
-        for ($y = 0, $width = $this->getWidth(), $height = $this->getHeight(); $y < $height; ++$y)
-            for ($x = 0; $x < $width; ++$x) {
-                $c          = imagecolorat($this->handle, $x, $y);
-                (isset($colors[$c]) && ++$colors[$c]) || ($colors[$c] = 1);
+        for ($y = 0, $w = $this->getWidth(), $h = $this->getHeight(), $img = $this->handle; $y < $h; ++$y)
+            for ($x = 0; $x < $w; ++$x) {
+                $c = imagecolorat($img, $x, $y);
+                if (isset($colors[$c])) {
+                    ++$colors[$c];
+                } else {
+                    $colors[$c] = 1;
+                }
             }
         ksort($colors);
         return $colors;

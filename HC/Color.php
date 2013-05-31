@@ -13,40 +13,11 @@ use InvalidArgumentException;
  */
 final class Color {
 
-    private /* @var int */ $red,
+    private /* @var int */ $index;
+    public  /* @var int */ $red,
             /* @var int */ $green,
             /* @var int */ $blue,
-            /* @var int */ $alpha,
-            /* @var int */ $index;
-
-    /**
-     * @return int
-     */
-    public function getRed() {
-        return $this->red;
-    }
-
-    /**
-     * @return int
-     */
-    public function getGreen() {
-        return $this->green;
-    }
-
-    /**
-     * @return int
-     */
-    public function getBlue() {
-        return $this->blue;
-    }
-
-    /**
-     * @return int
-     */
-    public function getAlpha() {
-        return $this->alpha;
-    }
-
+            /* @var int */ $alpha;
     /**
      * @return bool
      */
@@ -56,32 +27,38 @@ final class Color {
 
     /**
      * 
-     * @param int $red   red   color complement [0-255]
-     * @param int $green green color complement [0-255]
-     * @param int $blue  blue  color complement [0-255]
-     * @param int $alpha alpha color complement [0-127]
+     * @param int  $red      red   color complement [0-255]
+     * @param int  $green    green color complement [0-255]
+     * @param int  $blue     blue  color complement [0-255]
+     * @param int  $alpha    alpha color complement [0-127]
+     * @param bool $chkRange round values to right range eg. [0-255]
      */
-    public function __construct($red, $green, $blue, $alpha = 0) {
-        $this->red   = 0xff & $red; //((int) $red)
-        $this->green = 0xff & $green;
-        $this->blue  = 0xff & $blue;
-        $this->alpha = 0x7f & $alpha;
+    public function __construct($red, $green, $blue, $alpha = 0, $chkRange = true) {
+        if($chkRange){//range checking
+            if($red  >=0xff)$red  =0xff;elseif($red  <=0x00)$red  =0x00;else $red  =(int)$red;
+            if($blue >=0xff)$blue =0xff;elseif($blue <=0x00)$blue =0x00;else $blue =(int)$blue;
+            if($green>=0xff)$green=0xff;elseif($green<=0x00)$green=0x00;else $green=(int)$green;
+            if($alpha>=0x7f)$alpha=0x7f;elseif($alpha<=0x00)$alpha=0x00;else $alpha=(int)$alpha;
+        }
+        $this->red   = $red;
+        $this->green = $green;
+        $this->blue  = $blue;
+        $this->alpha = $alpha;
     }
 
     /**
      * 
-     * @param int $red   red   color complement [0-255]
-     * @param int $green green color complement [0-255]
-     * @param int $blue  blue  color complement [0-255]
-     * @param int $alpha alpha color complement [0-127]
+     * @param int  $red      red   color complement [0-255]
+     * @param int  $green    green color complement [0-255]
+     * @param int  $blue     blue  color complement [0-255]
+     * @param int  $alpha    alpha color complement [0-127]
      * @return Color
      */
     private function _($red, $green, $blue, $alpha = 0) {
-        //$this->__construct($red, $green, $blue, $alpha);//optim for speed
-        $this->red   = 0xff & $red;
-        $this->green = 0xff & $green;
-        $this->blue  = 0xff & $blue;
-        $this->alpha = 0x7f & $alpha;
+        $this->red   = $red;
+        $this->green = $green;
+        $this->blue  = $blue;
+        $this->alpha = $alpha;
         return $this;
     }
 
@@ -92,21 +69,22 @@ final class Color {
      */
     public static function clear() {
         static $transparent;
-        isset($transparent) || $transparent = new self(0, 0, 0, 127);
+        isset($transparent) || $transparent = new self(0, 0, 0, 127,false);
         return $transparent;
     }
 
     /**
      * Create new color from rgba components
      * 
-     * @param int $red   red   color complement [0-255]
-     * @param int $green green color complement [0-255]
-     * @param int $blue  blue  color complement [0-255]
-     * @param int $alpha alpha color complement [0-127]
+     * @param int  $red      red   color complement [0-255]
+     * @param int  $green    green color complement [0-255]
+     * @param int  $blue     blue  color complement [0-255]
+     * @param int  $alpha    alpha color complement [0-127]
+     * @param bool $chkRange round values to right range eg. [0-255]
      * @return Color
      */
-    public static function fromRGBA($red, $green, $blue, $alpha = 0) {
-        return new self($red, $green, $blue, $alpha = 0);
+    public static function fromRGBA($red, $green, $blue, $alpha = 0, $chkRange = true) {
+        return new self($red, $green, $blue, $alpha, $chkRange);
     }
 
     /**
@@ -115,25 +93,26 @@ final class Color {
      * @param float $h – Hue angle on color circle of base with values between 0° and 360°(0-255)
      * @param float $s – Saturation - base radius 0 - 1.0 (0 - 255)
      * @param float $v – Value aka Brightness 0 - 1.0 (0 - 255)
+     * @param bool  $chkRange round values to right range eg. [0-255]
      * @return Color
      */
-    public static function fromHSV($h, $s, $v, $limit255 = false) {
+    public static function fromHSV($h, $s, $v, $limit255 = false, $chkRange = true) {
         $limit255 ? $s /= 256.0 : $v *= 255;
         if ($s == 0.0)
-            return new self($v, $v, $v); //(int) $v, (int) $v, (int) $v
+            return new self((int) $v, (int) $v, (int) $v, $chkRange);
         $limit255 ? $h /= (256.0 / 6.0) : $h /= 60.0;
         $i = floor($h);
         $f = $h - $i;
-        $p = $v * (1.0 - $s); //(integer)() 
+        $p = $v * (1.0 - $s);
         $q = $v * (1.0 - $s * $f);
         $t = $v * (1.0 - $s * (1.0 - $f));
         switch ($i) {
-            case 1: return new self($q, $v, $p);
-            case 2: return new self($p, $v, $t);
-            case 3: return new self($p, $q, $v);
-            case 4: return new self($t, $p, $v);
-            case 5: return new self($v, $p, $q);
-            default: return new self($v, $t, $p);
+            case 1: return new self((int)$q, (int)$v, (int)$p, 0, $chkRange);
+            case 2: return new self((int)$p, (int)$v, (int)$t, 0, $chkRange);
+            case 3: return new self((int)$p, (int)$q, (int)$v, 0, $chkRange);
+            case 4: return new self((int)$t, (int)$p, (int)$v, 0, $chkRange);
+            case 5: return new self((int)$v, (int)$p, (int)$q, 0, $chkRange);
+            default:return new self((int)$v, (int)$t, (int)$p, 0, $chkRange);
         }
     }
 
@@ -146,7 +125,7 @@ final class Color {
     public static function fromString($color) {
         $c = (string) $color;
         if (isset($c[0]) && $c[0] === '#') {
-            switch (strlen($c)) {
+            switch (strlen($c)-1) {
                 case 3: $c = "$c[0]$c[0]$c[1]$c[1]$c[2]$c[2]";
                 case 6:
                 case 8:
@@ -159,7 +138,7 @@ final class Color {
                     ));
             }
         } elseif (($c = self::namedColor2RGB($c)) !== false) {
-            return self::fromArray($c);
+            return self::fromArray($c, false);
         } else {
             throw new InvalidArgumentException(sprintf(
                     'Named Color not found, "%s" given', $c
@@ -175,16 +154,17 @@ final class Color {
      */
     public static function fromInt($color) {
         $color = intval($color);
-        return new self(($color >> 16), ($color >> 8), ($color), ($color >> 24));
+        return new self(($color >> 16) & 0xff, ($color >> 8) & 0xff, ($color) & 0xff, ($color >> 24) & 0x7f, false);
     }
 
     /**
      * Create color from array 
      * 
-     * @param array  $color [r,g,b] or [r,g,b,a]
+     * @param array  $color    [r,g,b] or [r,g,b,a]
+     * @param bool   $chkRange round values to right range eg. [0-255]
      * @return Color
      */
-    public static function fromArray(array $color) {
+    public static function fromArray(array $color, $chkRange = true) {
         if (($num = count($color)) !== 3 && $num !== 4)
             throw new InvalidArgumentException(
             'Color argument if array, must look like array(R, G, B[, A]), ' .
@@ -193,7 +173,7 @@ final class Color {
             'value between 0 and 127 for alfa'
             );
         $color = isset($color[0]) ? $color : array_keys($color);
-        return new self($color[0], $color[1], $color[2], ($num === 4 ? $color[3] : 0));
+        return new self($color[0], $color[1], $color[2], ($num === 4 ? $color[3] : 0), $chkRange);
     }
 
     /**
@@ -245,10 +225,10 @@ final class Color {
      * @return Color  
      */
     public function dissolve($alpha, $self = false) {
-        $alpha = min(max($this->alpha + $alpha, 0), 0x7f);
+        if(($a = $this->alpha + $alpha)>=0x7f)$a=0x7f;elseif($a<=0x00)$a=0x00;else $a=(int)$a;
         if ($self)
-            return $this->_($this->red, $this->green, $this->blue, $alpha);
-        return new self($this->red, $this->green, $this->blue, $alpha);
+            return $this->_($this->red, $this->green, $this->blue, $a);
+        return new self($this->red, $this->green, $this->blue, $a,false);
     }
 
     /**
@@ -259,12 +239,13 @@ final class Color {
      * @return Color  
      */
     public function adjustBrightness($shade, $self = false) {
-        $r = min(max(0, $this->red + $shade), 255);
-        $g = min(max(0, $this->green + $shade), 255);
-        $b = min(max(0, $this->blue + $shade), 255);
+        if(($r = $this->red   + $shade)>=0xff)$r=0xff;elseif($r<=0x00)$r=0x00;else $r=(int)$r;
+        if(($b = $this->blue  + $shade)>=0xff)$b=0xff;elseif($b<=0x00)$b=0x00;else $b=(int)$b;
+        if(($g = $this->green + $shade)>=0xff)$g=0xff;elseif($g<=0x00)$g=0x00;else $g=(int)$g;
+
         if ($self)
             return $this->_($r, $g, $b, $this->alpha);
-        return new self($r, $g, $b, $this->alpha);
+        return new self($r, $g, $b, $this->alpha, false);
     }
 
     /**
@@ -274,12 +255,12 @@ final class Color {
      * @return Color  
      */
     public function gray($self = false) {
-        $r = 0.2989 * $this->red;
-        $g = 0.5870 * $this->green;
-        $b = 0.1140 * $this->blue;
+        $r = (int)(0.2989 * $this->red);
+        $g = (int)(0.5870 * $this->green);
+        $b = (int)(0.1140 * $this->blue);
         if ($self)
             return $this->_($r, $g, $b, $this->alpha);
-        return new self($r, $g, $b, $this->alpha);
+        return new self($r, $g, $b, $this->alpha, false);
     }
 
     /**
@@ -310,7 +291,7 @@ final class Color {
     public function rbg($self = false) {
         if ($self)
             return $this->_($this->red, $this->blue, $this->green, $this->alpha);
-        return new self($this->red, $this->blue, $this->green, $this->alpha);
+        return new self($this->red, $this->blue, $this->green, $this->alpha, false);
     }
 
     /**
@@ -322,7 +303,7 @@ final class Color {
     public function bgr($self = false) {
         if ($self)
             return $this->_($this->blue, $this->green, $this->red, $this->alpha);
-        return new self($this->blue, $this->green, $this->red, $this->alpha);
+        return new self($this->blue, $this->green, $this->red, $this->alpha, false);
     }
 
     /**
@@ -334,7 +315,7 @@ final class Color {
     public function brg($self = false) {
         if ($self)
             return $this->_($this->blue, $this->red, $this->green, $this->alpha);
-        return new self($this->blue, $this->red, $this->green, $this->alpha);
+        return new self($this->blue, $this->red, $this->green, $this->alpha, false);
     }
 
     /**
@@ -346,7 +327,7 @@ final class Color {
     public function gbr($self = false) {
         if ($self)
             return $this->_($this->green, $this->blue, $this->red, $this->alpha);
-        return new self($this->green, $this->blue, $this->red, $this->alpha);
+        return new self($this->green, $this->blue, $this->red, $this->alpha, false);
     }
 
     /**
@@ -358,35 +339,7 @@ final class Color {
     public function grb($self = false) {
         if ($self)
             return $this->_($this->green, $this->red, $this->blue, $this->alpha);
-        return new self($this->green, $this->red, $this->blue, $this->alpha);
-    }
-
-    /**
-     * Allocate color
-     * 
-     * @see imagecolorexactalpha,imagecolorclosestalpha,imagecolorallocatealpha
-     * @deprecated use 0xAARRGGBB hex instead
-     * @param resource $image gd image handle
-     * @return int                      
-     * @throws InvalidArgumentException
-     */
-    public function allocateColor($image) {
-        if (!Image::isValidImageHandle($image))
-            throw new InvalidArgumentException('Invalid image handle');
-
-        $r     = $this->red;
-        $g     = $this->green;
-        $b     = $this->blue;
-        $a     = $this->alpha;
-        $color = imagecolorexactalpha($image, $r, $g, $b, $a);
-        if ($color === -1) {
-            if (imagecolorstotal($image) >= 255) {
-                $color = imagecolorclosestalpha($image, $r, $g, $b, $a);
-            } else {
-                $color = imagecolorallocatealpha($image, $r, $g, $b, $a);
-            }
-        }
-        return $color;
+        return new self($this->green, $this->red, $this->blue, $this->alpha, false);
     }
 
     /**
@@ -397,13 +350,49 @@ final class Color {
      * @return Color  
      */
     public function mixWithColor(Color $color, $self = false) {
-        $r = (($this->red + $color->red) / 2) + 0.5; //(int) ()
-        $g = (($this->green + $color->green) / 2) + 0.5;
-        $b = (($this->blue + $color->blue) / 2) + 0.5;
-        $a = (($this->alpha + $color->alpha) / 2) + 0.5;
+        $r = (int)((($this->red   + $color->red  ) / 2) + 0.5);
+        $g = (int)((($this->green + $color->green) / 2) + 0.5);
+        $b = (int)((($this->blue  + $color->blue ) / 2) + 0.5);
+        $a = (int)((($this->alpha + $color->alpha) / 2) + 0.5);
         if ($self)
             return $this->_($r, $g, $b, $a);
-        return new self($r, $g, $b, $a);
+        return new self($r, $g, $b, $a, false);
+    }
+    
+    /**
+     * Sum color with other color
+     * 
+     * @param Color $color Color to sum with
+     * @param bool  $self return self or new object
+     * @return Color  
+     */
+    public function sumWithColor(Color $color, $self = false) {
+        if(($r = $this->red   + $color->red  )>=0xff) $r=0xff;
+        if(($g = $this->green + $color->green)>=0xff) $b=0xff;
+        if(($b = $this->blue  + $color->blue )>=0xff) $g=0xff;
+        if(($a = $this->alpha + $color->alpha)>=0x7f) $a=0x7f;
+
+        if ($self)
+            return $this->_($r, $g, $b, $a);
+        return new self($r, $g, $b, $a, false);
+    }
+    
+    /**
+     * Subtract other color from this color
+     * 
+     * @param Color $color Color to subtract
+     * @param bool  $self return self or new object
+     * @return Color  
+     */
+    public function subtractColor(Color $color, $self = false) {
+        if(($r = $this->red   - $color->red  )<=0x00) $r=0x00;
+        if(($g = $this->green - $color->green)<=0x00) $b=0x00;
+        if(($b = $this->blue  - $color->blue )<=0x00) $g=0x00;
+        if(($a = $this->alpha - $color->alpha)<=0x00) $a=0x00;
+
+        if ($self)
+            return $this->_($r, $g, $b, $a);
+        return new self($r, $g, $b, $a, false);
     }
 
     /**
@@ -599,8 +588,8 @@ final class Color {
         if (!isset($this->index)) {
             $this->index =
                     ($this->alpha << 24) +
-                    ($this->red << 16) +
-                    ($this->green << 8) +
+                    ($this->red   << 16) +
+                    ($this->green <<  8) +
                     ($this->blue);
         }
         return $this->index;

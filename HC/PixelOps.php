@@ -19,7 +19,7 @@ class PixelOps {
     const MAT_MEAN_REMOVAL  = 'mean removal (sharpen)';
     const MAT_SHARPEN       = 'sharpen';
     const MAT_SHARPEN_NICE  = 'sharpen nice';
-    const MAT_UNSHARPEM     = 'unsharpen';
+    const MAT_UNSHARPEN     = 'unsharpen';
     const MAT_DILATE        = 'dilate';
     const MAT_BLUR          = 'blur';
     const MAT_EMBOSS        = 'emboss';
@@ -73,7 +73,7 @@ class PixelOps {
                 return array(
                     array( 1,  1,  1), array( 1, -7,  1), array( 1,  1,  1)
                 );//offset 127
-            case MAT_EDGE_DETECT2:
+            case self::MAT_EDGE_DETECT2:
                 return array(
                     array(-5,  0,  0), array( 0,  0,  0), array( 0,  0,  5)
                 );
@@ -91,7 +91,7 @@ class PixelOps {
      */
     public static function pixelTransparency($alpha) {
         return function(Color $pixel) use ($alpha) {
-                    return $pixel->dissolve($alpha);
+                    return $pixel->dissolve($alpha, true);
                 };
     }
 
@@ -125,7 +125,7 @@ class PixelOps {
         if ($factor < 0)
             $factor = -$factor;
         return function(Color $pixel) use ($factor) {
-                    return $pixel->adjustBrightness(mt_rand(-$factor, $factor));
+                    return $pixel->adjustBrightness(mt_rand(-$factor, $factor), true);
                 };
     }
 
@@ -138,7 +138,7 @@ class PixelOps {
      * @see Color::bgr()
      * @see Color::brg()
      * @see Color::gbr()
-     * s@see Color::grb()
+     * @see Color::grb()
      * @param string  $swap type of color components swap
      * @return callable color swapper
      */
@@ -166,17 +166,17 @@ class PixelOps {
      * @return callable filter
      */
     public static function pixelFilterHue(Color $color) {
-        $rHue = $color->getRed()   / $color->sum();
-        $gHue = $color->getGreen() / $color->sum();
-        $bHue = $color->getBlue()  / $color->sum();
+        $rHue = $color->red   / $color->sum();
+        $gHue = $color->green / $color->sum();
+        $bHue = $color->blue  / $color->sum();
         return function(Color $pixel) use ($rHue, $gHue, $bHue) {
-                    $r    = $pixel->getRed();
-                    $g    = $pixel->getGreen();
-                    $b    = $pixel->getBlue();
-                    $newR = $r * $rHue + $g * $bHue + $b * $gHue;
-                    $newG = $r * $gHue + $g * $rHue + $b * $bHue;
-                    $newB = $r * $bHue + $g * $gHue + $b * $rHue;
-                    return new Color($newR, $newG, $newB);
+                    $r            = $pixel->red;
+                    $g            = $pixel->green;
+                    $b            = $pixel->blue;
+                    $pixel->red   = (int)($r * $rHue + $g * $bHue + $b * $gHue);
+                    $pixel->green = (int)($r * $gHue + $g * $rHue + $b * $bHue);
+                    $pixel->blue  = (int)($r * $bHue + $g * $gHue + $b * $rHue);
+                    return $pixel;
                 };
     }
 

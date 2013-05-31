@@ -26,8 +26,8 @@ use ReflectionFunction;
  * @method  bool filledEllipse(int $cx, int $cy, int $width, int $height, int $color)
  * @method  bool filledPolygon(int[] $points, int $num_points, int $color)
  * @method  bool filledRectangle(int $x1, int $y1, int $x2, int $y2, int $color)
- * @method  bool filter(int $filtertype, int $arg1, int $arg2, int $arg3, int $arg4)
- * @method  bool imagearc(int $cx, int $cy, int $width, int $height, int $start, int $end, int $color)
+ * @method  bool filter(int $filtertype, int $arg1, int $arg2, int $arg3, int $arg4) apply gd filter to image
+ * @method  bool arc(int $cx, int $cy, int $width, int $height, int $start, int $end, int $color)
  * @method  bool line(int $x1, int $y1, int $x2, int $y2, int $color) 
  * @method  bool polygon(int[] $points, int $num_points, int $color)
  * @method  bool rectangle(int $x1, int $y1, int $x2, int $y2, int $color)
@@ -35,9 +35,12 @@ use ReflectionFunction;
  * @method  bool string(int $font, int $x, int $y, string $string, int $color)
  * @method  bool stringUp(int $font, int $x, int $y, string $string, int $color)
  * @method  bool layerEffect(int $effect)
- * @method  bool truecolorToPalette(bool $dither, int $ncolors)
+ * @method  bool trueColorToPalette(bool $dither, int $ncolors)
+ * @method  bool isTrueColor()
+ * @method  int  colorsTotal()
  * @method  int  colorAllocate(int $red, int $green, int $blue)
  * @method  int  colorAllocateAlpha(int $red, int $green, int $blue, int $alpha)
+ * @method  array colorsForIndex(int $index)
  * @method  mixed .*(mixed $params,..) mixed image*($this->handle, mixed $params,..)
  */
 class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserver
@@ -174,23 +177,62 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
     }
 
     /**
+     * Allocate color for paletted images, for truecolor use 0xAARRGGBB hex instead
+     * 
+     * @see imagecolorexactalpha,imagecolorclosestalpha,imagecolorallocatealpha
+     * @param Color $color color to allocate
+     * @param bool  $alpha allocate also alpha value
+     * @return int                      
+     * @throws InvalidArgumentException
+     */
+    public function allocateColor(Color $color, $alpha = true) {
+        $handle = $this->handle;
+        $r      = $color->red;
+        $g      = $color->green;
+        $b      = $color->blue;
+        if ($alpha) {
+            $a     = $color->alpha;
+            $index = imagecolorexactalpha($handle, $r, $g, $b, $a);
+            if ($index === -1) {
+                if (imagecolorstotal($handle) >= 255) {
+                    $index = imagecolorclosestalpha($handle, $r, $g, $b, $a);
+                } else {
+                    $index = imagecolorallocatealpha($handle, $r, $g, $b, $a);
+                }
+            }
+        } else {
+            $index = imagecolorexact($handle, $r, $g, $b);
+            if ($index === -1) {
+                if (imagecolorstotal($handle) >= 255) {
+                    $index = imagecolorclosest($handle, $r, $g, $b);
+                } else {
+                    $index = imagecolorallocate($handle, $r, $g, $b);
+                }
+            }
+        }
+        return $index;
+    }
+
+    /**
      * Per pixel operations on image canvas
      * 
      * Optimized for speed method to do get and set operations on separate pixels using callback
      * 
-     * @param callback $operation  Color|int function([Color|int $rgb[, int $x[, int $y]]])
+     * @param callback $operation  Color|int function([Color|int $rgb[, int $x[, int $y[, $handle]]]])
      * @param array    $forOpts    options for traversing canvas as matrix of pixels
      *                             beginX=beginY=0, dX=dY=1, endX=width, endY=height
-     * @param int      $returnMode declare what callback will return 0-int, 1-Color, def-auto
-     * @param int      $mode       force return color for callback as 0-Color, 1-index, 2-0, 
-     *                             by default automatic (and $rgb = unused -> 2)
+     * @param int      $returnMode declare what callback will return 0-int, 1-Color, 2-Color|int, 3-int|Color
+     * @param int      $mode       declare what callback want for argument as 0-Color, 1-index, 2-0, 
+     *                             by default automatic (typehint Color->1, $rgb = $unused -> 2)
+     * @param bool     $cache      try to cache output of callback to speed up calculating pixels color
      * @throws InvalidArgumentException
      * @return Canvas
      */
-    public function pixelOperation($operation, array $forOpts = array(), $returnMode = 3, $mode = 0) {
+    public function pixelOperation($operation, array $forOpts = array(), $returnMode = 3, $mode = 0, $cache = false) {
         if (!is_callable($operation))
             throw new InvalidArgumentException('Operation must be a valid callable or Closure');
 
+        $handle = $this->handle;
         $beginX = $beginY = 0;
         $dX     = $dY     = 1;
         $endX   = $this->width;
@@ -198,40 +240,62 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
         $opts   = array('beginX', 'beginY', 'dX', 'dY', 'endX', 'endY');
         extract(array_intersect_key($forOpts, array_flip($opts)));
 
-        if (max($beginX, $endX) > $this->width || max($beginY, $endY) > $this->height || min($beginX, $endX, $beginY, $endY) < 0)
+        if (max($beginX, $endX) > $this->width 
+                || max($beginY, $endY) > $this->height 
+                || min($beginX, $endX, $beginY, $endY) < 0)
             throw new InvalidArgumentException('One or more for loop options values out of bounds');
 
+        $reflection  = new ReflectionFunction($operation);
+        $paramsCount = $reflection->getNumberOfParameters();
         if ($mode === 0) {//speed up a little if default, aka runtime optimalization
-            $ref       = new ReflectionFunction($operation); //isClosure()
-            $refParams = $ref->getParameters();
-            if ($ref->getNumberOfParameters() >= 1) {//what callback expect as first param
+            if ($paramsCount >= 1) {//what callback expect as first param
+                $refParams = $reflection->getParameters();
                 if ($refParams[0]->getName() === 'unused')//param will not be used
-                    $mode = 2; //expect nothing - can pass 0
+                    $mode      = 2; //expect nothing - can pass 0
                 elseif ($refParams[0]->getClass() === null)//param will not be a Color Object
-                    $mode = 1; //expect int
+                    $mode      = 1; //expect int
             }
             else
                 $mode = 2; //expect nothing - can pass 0
-        }//else mode 0 slowest
+        }//else mode 0 slowest - expect Color
+
+        if ($cache) {//can callback output really be cached?
+            ob_start();
+            var_dump($reflection->getStaticVariables());
+            if (preg_match('/]=>\n\s+(&|object)/', ob_get_clean()) || $paramsCount > 1)
+                $cache = false;
+        } else {
+            $cached = array();
+        }
 
         if ($returnMode === 3 && $mode === 0)
             $returnMode = 2;
 
-        $break  = self::BREAK_OP;
-        $handle = $this->handle;
-        $loop   = 'namespace ' . __NAMESPACE__ . ';';
-        $loop.= 'for ($y = $beginY; $y < $endY; $y+=$dY) { for ($x = $beginX; $x < $endX; $x+=$dX) {';
-        switch ($mode) {//break operation
-            case 2:
-                $loop.= 'if (($pixel = $operation(0, $x, $y)) === $break) break 2;';
+                                 $params  = '';
+        if (1 <= $paramsCount)
+            if ($mode === 2)     $params .= '0';
+            elseif ($mode === 1) $params .= '$rgb';
+            else                 $params .= 'Color::fromInt($rgb)';
+        if (2 <= $paramsCount)   $params .= ',$x';
+        if (3 <= $paramsCount)   $params .= ',$y';
+        if (4 <= $paramsCount)   $params .= ',$handle';
+        if (5 <= $paramsCount)   $params .= str_repeat(',0', $paramsCount - 4);
+
+        $call = 'if (($pixel = $operation(' . $params . ')) === \'' . self::BREAK_OP . '\') break 2;';
+        $loop = 'namespace ' . __NAMESPACE__ . ';';
+        $loop .= 'for ($y = $beginY; $y < $endY; $y+=$dY) { for ($x = $beginX; $x < $endX; $x+=$dX) {';
+        switch ($mode) {
+            case 2:         $loop.= $call;
                 break;
-            case 1:
-                $loop.= '$rgb = imagecolorat($handle, $x, $y);';
-                $loop.= 'if (($pixel = $operation($rgb, $x, $y)) === $break) break 2;';
+            case 1:         $loop.= '$rgb = imagecolorat($handle, $x, $y);';
+                if ($cache) $loop.='if(isset($cached[$rgb])) $pixel = $cached[$rgb]; else {';
+                            $loop.= $call;
+                if ($cache) $loop.='$cached[$rgb]=$pixel;}';
                 break;
-            default:
-                $loop.= '$rgb = imagecolorat($handle, $x, $y);';
-                $loop.= 'if (($pixel = $operation(Color::fromInt($rgb), $x, $y)) === $break) break 2;';
+            default:        $loop.= '$rgb = imagecolorat($handle, $x, $y);';
+                if ($cache) $loop.='if(isset($cached[$rgb])) $pixel = $cached[$rgb]; else {';
+                            $loop.= $call;
+                if ($cache) $loop.='$cached[$rgb]=$pixel;}';
         }
         switch ($returnMode) {//return
             case 0:
@@ -250,11 +314,6 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
         }
         eval($loop . '}}'); //eval because of speed and code space
         return $this;
-//        foreach ($this as $idx => $rgb) {
-//            $pixel = $operation(new Color($rgb), $x, $y);
-//            if ($pixel instanceof Color)
-//                $this[$idx]($pixel->getIndex());
-//        }
     }
 
     /**
@@ -263,17 +322,31 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
      * @return number avg luminance
      */
     function getAverageLuminance() {
+        $width        = $this->width;
+        $height       = $this->height;
+        $handle       = $this->handle;
         $luminanceSum = 0;
-        for ($y = 0; $y < $this->height; ++$y) {
-            for ($x = 0; $x < $this->width; ++$x) {
-                $rgb = imagecolorat($this->handle, $x, $y);
+        for ($y = 0; $y < $height; ++$y) {
+            for ($x = 0; $x < $width; ++$x) {
+                $rgb = imagecolorat($handle, $x, $y);
+                //$rgb = imagecolorsforindex($handle, $rgb);
                 $r   = ($rgb >> 16) & 0xFF;
                 $g   = ($rgb >> 8) & 0xFF;
                 $b   = ($rgb) & 0xFF;
                 $luminanceSum += (0.30 * $r) + (0.59 * $g) + (0.11 * $b);
             }
         }
-        return $luminanceSum / $this->count();
+        return $luminanceSum / ($width * $height);
+    }
+    
+    /**
+     * 
+     * Use helpher filter on canvas
+     * @see imagefilter,imageconvolution,Canvas::pixelOperation
+     * @return Filter
+     */
+    public function useFilter() {
+        return new Filter($this->handle);
     }
 
     /**
