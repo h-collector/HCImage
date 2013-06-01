@@ -98,7 +98,7 @@ class Filter {
      * [1.0   1.0   1.0]
      * The result is normalized by dividing by $weight + 8.0
      * 
-     * @see imagefilter,imageconvolution,PixelOps::getConvMatrix
+     * @see imagefilter,imageconvolution
      * @param float $weight smothness level
      * @return Filter
      * @throws RuntimeException
@@ -146,7 +146,7 @@ class Filter {
     }
 
     /**
-     * @see imagefilter,imageconvolution,PixelOps::getConvMatrix
+     * @see imagefilter,imageconvolution
      * @return Filter
      * @throws RuntimeException
      */
@@ -157,7 +157,7 @@ class Filter {
     }
 
     /**
-     * @see imagefilter,imageconvolution,PixelOps::getConvMatrix
+     * @see imagefilter,imageconvolution
      * @return Filter
      * @throws RuntimeException
      */
@@ -168,7 +168,7 @@ class Filter {
     }
 
     /**
-     * @see imagefilter,imageconvolution,PixelOps::getConvMatrix
+     * @see imagefilter,imageconvolution
      * @return Filter
      * @throws RuntimeException
      */
@@ -179,7 +179,7 @@ class Filter {
     }
 
     /**
-     * @see imagefilter,imageconvolution,PixelOps::getConvMatrix
+     * @see imagefilter,imageconvolution
      * @return Filter
      * @throws RuntimeException
      */
@@ -190,7 +190,7 @@ class Filter {
     }
 
     /**
-     * @see imagefilter,imageconvolution,PixelOps::getConvMatrix
+     * @see imagefilter,imageconvolution
      * @return Filter
      * @throws RuntimeException
      */

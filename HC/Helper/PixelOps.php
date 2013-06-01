@@ -4,6 +4,7 @@ namespace HC\Helper;
 
 use HC\Canvas;
 use HC\Color;
+
 use InvalidArgumentException;
 
 /**
@@ -35,7 +36,7 @@ class PixelOps {
     
     /**
      * Apply predefined Canvas::pixelOperation (one time)
-     * Note: Sets imagealphablending to false
+     * Note: by default sets imagealphablending to false
      * 
      * @param Canvas $canvas
      * @param int  $beginX
@@ -44,41 +45,54 @@ class PixelOps {
      * @param int  $endY   canvas full height if null
      * @param int  $stepX
      * @param int  $stepY
-     * @param bool $cache
+     * @param bool $cache speed up color calculations but use more memory
+     * @param bool $alphaBlending
      * @return PixelOps
      */
     public static function on(Canvas $canvas, 
             $beginX = 0, $beginY = 0, $endX = null, $endY = null, $stepX = 1, $stepY = 1, 
-            $cache = false) {
+            $cache = false, $alphaBlending = false) {
         $forOpts = compact('beginX', 'beginY', 'endX', 'endY', 'stepX', 'stepY');
-        $canvas->alphaBlending(false);
+        $canvas->alphaBlending($alphaBlending);
         return new self($canvas, $forOpts, $cache);
     }
-
-    public function __call($name, $arguments) {
+    
+    /**
+     * Apply custom callback with set range and step parameters
+     * 
+     * @param callback $operation  Color|int function([Color|int $rgb[, int $x[, int $y[, $handle]]]])
+     * @param int      $returnMode declare what callback will return 0-int, 1-Color, 2-Color|int, 3-int|Color
+     * @param int      $mode       declare what callback want for argument as 0-Color, 1-index, 2-0, 
+     *                             by default automatic (typehint Color->1, $rgb = $unused -> 2)
+     * @throws InvalidArgumentException
+     * @return Canvas
+     */
+    public function apply($callback, $returnMode = 3, $mode = 0) {
         $canvas       = $this->canvas;
         $forOpts      = $this->forOpts;
         $cache        = $this->cache;
-        $this->canvas = null;//allow chaining?
+        $this->canvas = null;//allow reuse?
 
         if ($forOpts['endX'] === null)
             $forOpts['endX'] = $canvas->sX();
         if ($forOpts['endY'] === null)
             $forOpts['endY'] = $canvas->sY();
-
-        $closure = call_user_func_array(__CLASS__ . '::pixel' . ucfirst($name), $arguments);
-        switch ($name) {
-            case 'transparency':  $mode = 1; break;
-            case 'saltAndPepper': $mode = 0; break;
-            case 'noise':         $mode = 1; break;
-            case 'swapColor':     $mode = 0; break;
-            case 'filterHue':     $mode = 1; break;
-            default:              $mode = 3;
-        }
-        $ret = $canvas->pixelOperation($closure, $forOpts, $mode, 0, $cache);
-        return $ret;
+        return $canvas->pixelOperation($callback, $forOpts, $returnMode, $mode, $cache);
     }
 
+     public function __call($name, $arguments) {
+        $closure = call_user_func_array(__CLASS__ . '::pixel' . ucfirst($name), $arguments);
+        switch ($name) {
+            case 'transparency':  $returnMode = 1; break;
+            case 'saltAndPepper': $returnMode = 0; break;
+            case 'noise':         $returnMode = 1; break;
+            case 'swapColor':     $returnMode = 0; break;
+            case 'filterHue':     $returnMode = 1; break;
+            default:              $returnMode = 3;
+        }
+        return $this->apply($closure, $returnMode);
+    }
+    
     /**
      * Add alpha to image, use with caching
      * 

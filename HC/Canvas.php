@@ -373,7 +373,7 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
     
     /**
      * Apply predefined Canvas::pixelOperation (one time)
-     * Note: Sets imagealphablending to false
+     * Note: by default sets imagealphablending to false
      * 
      * @see Canvas::pixelOperation
      * @param int  $beginX
@@ -382,13 +382,14 @@ class Canvas implements ArrayAccess, SeekableIterator, Countable {// \SplObserve
      * @param int  $endY   canvas full height if null
      * @param int  $stepX
      * @param int  $stepY
-     * @param bool $cache
+     * @param bool $cache speed up color calculations but use more memory
+     * @param bool $alphaBlending
      * @return PixelOps
      */
     public function usePixelOps(
             $beginX = 0, $beginY = 0, $endX = null, $endY = null, $stepX = 1, $stepY = 1, 
-            $cache = false) {
-        return PixelOps::on($this, $beginX, $beginY, $endX, $endY, $stepX, $stepY, $cache);
+            $cache = false, $alphaBlending = false) {
+        return PixelOps::on($this, $beginX, $beginY, $endX, $endY, $stepX, $stepY, $cache, $alphaBlending);
     }
 
     /**

@@ -7,8 +7,8 @@ use HC\Image;
 try {
     $img  = Image::load('img/PNG_transparency_demonstration_1.png');
     $time = microtime(true);
-    $img->trim();
-    $img2 = clone $img;
+    
+    $img2 = clone $img->trim();
     $img->getCanvas()
             ->useFilter()
             ->grayScale()
