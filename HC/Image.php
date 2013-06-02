@@ -484,7 +484,9 @@ class Image {//\SplSubject
     /**
      * Scale image using scale2x algorithm
      * 
-     * @todo opimize border situations (x=y=0, y=width-1, x=width-1
+     * @todo opimizing border situations (x=y=0, y=width-1, x=width-1, by moving ifs
+     *       give at most + 5% speed boost for testing image (>30% px have same color), 
+     *       same as with prebuffering, find better implementation
      * @link http://scale2x.sourceforge.net/algorithm.html
      * @return Image
      */
@@ -518,11 +520,10 @@ class Image {//\SplSubject
         $this->replaceImage($newImage);
         return $this;
     }
-    
+
     /**
      * Scale image using scale3x algorithm
      * 
-     * @todo opimize border situations (x=y=0, y=width-1, x=width-1
      * @link http://scale2x.sourceforge.net/algorithm.html
      * @return Image
      */

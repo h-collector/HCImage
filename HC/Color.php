@@ -36,8 +36,8 @@ final class Color {
     public function __construct($red, $green, $blue, $alpha = 0, $chkRange = true) {
         if($chkRange){//range checking
             if($red  >=0xff)$red  =0xff;elseif($red  <=0x00)$red  =0x00;else $red  =(int)$red;
-            if($blue >=0xff)$blue =0xff;elseif($blue <=0x00)$blue =0x00;else $blue =(int)$blue;
             if($green>=0xff)$green=0xff;elseif($green<=0x00)$green=0x00;else $green=(int)$green;
+            if($blue >=0xff)$blue =0xff;elseif($blue <=0x00)$blue =0x00;else $blue =(int)$blue;
             if($alpha>=0x7f)$alpha=0x7f;elseif($alpha<=0x00)$alpha=0x00;else $alpha=(int)$alpha;
         }
         $this->red   = $red;
@@ -228,7 +228,7 @@ final class Color {
         if(($a = $this->alpha + $alpha)>=0x7f)$a=0x7f;elseif($a<=0x00)$a=0x00;else $a=(int)$a;
         if ($self)
             return $this->_($this->red, $this->green, $this->blue, $a);
-        return new self($this->red, $this->green, $this->blue, $a,false);
+        return new self($this->red, $this->green, $this->blue, $a, false);
     }
 
     /**
@@ -240,8 +240,8 @@ final class Color {
      */
     public function adjustBrightness($shade, $self = false) {
         if(($r = $this->red   + $shade)>=0xff)$r=0xff;elseif($r<=0x00)$r=0x00;else $r=(int)$r;
-        if(($b = $this->blue  + $shade)>=0xff)$b=0xff;elseif($b<=0x00)$b=0x00;else $b=(int)$b;
         if(($g = $this->green + $shade)>=0xff)$g=0xff;elseif($g<=0x00)$g=0x00;else $g=(int)$g;
+        if(($b = $this->blue  + $shade)>=0xff)$b=0xff;elseif($b<=0x00)$b=0x00;else $b=(int)$b;
 
         if ($self)
             return $this->_($r, $g, $b, $this->alpha);
@@ -368,10 +368,10 @@ final class Color {
      */
     public function sumWithColor(Color $color, $self = false) {
         if(($r = $this->red   + $color->red  )>=0xff) $r=0xff;
-        if(($g = $this->green + $color->green)>=0xff) $b=0xff;
-        if(($b = $this->blue  + $color->blue )>=0xff) $g=0xff;
+        if(($g = $this->green + $color->green)>=0xff) $g=0xff;
+        if(($b = $this->blue  + $color->blue )>=0xff) $b=0xff;
         if(($a = $this->alpha + $color->alpha)>=0x7f) $a=0x7f;
-
+        
         if ($self)
             return $this->_($r, $g, $b, $a);
         return new self($r, $g, $b, $a, false);
@@ -386,8 +386,8 @@ final class Color {
      */
     public function subtractColor(Color $color, $self = false) {
         if(($r = $this->red   - $color->red  )<=0x00) $r=0x00;
-        if(($g = $this->green - $color->green)<=0x00) $b=0x00;
-        if(($b = $this->blue  - $color->blue )<=0x00) $g=0x00;
+        if(($g = $this->green - $color->green)<=0x00) $g=0x00;
+        if(($b = $this->blue  - $color->blue )<=0x00) $b=0x00;
         if(($a = $this->alpha - $color->alpha)<=0x00) $a=0x00;
 
         if ($self)
