@@ -554,7 +554,7 @@ final class Color {
     /**
      * Get current color as HSV
      * 
-     * @return object {hue, sat, val}
+     * @return array
      */
     public function getAsHSV() {
         $min = min($this->red, $this->green, $this->blue);
@@ -576,11 +576,7 @@ final class Color {
             $hue = (($i - $f / ($val - $min)) * 60) % 360;
             $sat = (($val - $min) / $val);
         }
-        return (object) array(
-            'hue' => $hue, 
-            'sat' => $sat, 
-            'val' => $val / 255.0
-        );
+        return (object) array('hue' => $hue, 'sat' => $sat, 'val' => $val / 255.0);
     }
 
     /**
