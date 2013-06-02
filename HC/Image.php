@@ -482,8 +482,9 @@ class Image {//\SplSubject
     }
 
     /**
-     * Scale image using scale2x alghoritm
+     * Scale image using scale2x algorithm
      * 
+     * @todo opimize border situations (x=y=0, y=width-1, x=width-1
      * @link http://scale2x.sourceforge.net/algorithm.html
      * @return Image
      */
@@ -493,32 +494,78 @@ class Image {//\SplSubject
         $height   = $this->getHeight();
         $bg       = $this->getTransparentColor(true);
         $newImage = self::createTrueColor($width * 2, $height * 2, $bg);
-        for ($x = 0, $dx = 0; $x < $width; ++$x, $dx+=2)//x -> y?
-            for ($y = 0, $dy = 0; $y < $height; ++$y, $dy+=2) {
-                $x1 = $x === 0 ? 0 : $x - 1;
-                $y1 = $y === 0 ? 0 : $y - 1;
-                $x2 = $x === $width - 1 ? $x : $x + 1;
-                $y2 = $y === $height - 1 ? $y : $y + 1;
+        for ($y = 0, $dy = 0, $wl = $width-1, $hl = $height-1; $y < $height; ++$y, $dy+=2)
+            for ($x = 0, $dx = 0; $x < $width; ++$x, $dx+=2) {
                 #A (-1,-1)  B (0,-1) C (1,-1)
                 #D (-1,0)   E (0,0)  F (1,0)
                 #G (-1,1)   H (0,1)  I (1,1)
-                $B  = imagecolorat($handle, $x, $y1);
-                $D  = imagecolorat($handle, $x1, $y);
-                $E  = imagecolorat($handle, $x, $y);
-                $F  = imagecolorat($handle, $x2, $y);
-                $H  = imagecolorat($handle, $x, $y2);
-                if ($B !== $H && $D !== $F) {
-                    $E0 = $D === $B ? $D : $E;
-                    $E1 = $B === $F ? $F : $E;
-                    $E2 = $D === $H ? $D : $E;
-                    $E3 = $H === $F ? $F : $E;
-                } else {
-                    $E0 = $E1 = $E2 = $E3 = $E;
+                $E  = imagecolorat($handle, $x,  $y);
+                if($y === 0)   $B = $E; else $B = imagecolorat($handle, $x,  $y - 1);
+                if($y === $hl) $H = $E; else $H = imagecolorat($handle, $x,  $y + 1);
+                if ($Z  = $B !== $H){
+                    if($x === 0)   $D = $E; else $D = imagecolorat($handle, $x - 1, $y);
+                    if($x === $wl) $F = $E; else $F = imagecolorat($handle, $x + 1, $y);
                 }
-                imagesetpixel($newImage, $dx, $dy, $E0);
-                imagesetpixel($newImage, $dx + 1, $dy, $E1);
-                imagesetpixel($newImage, $dx, $dy + 1, $E2);
-                imagesetpixel($newImage, $dx + 1, $dy + 1, $E3);
+                if ($Z && $D !== $F) {
+                    imagesetpixel($newImage, $dx,     $dy,     $D === $B ? $D : $E);//$E0
+                    imagesetpixel($newImage, $dx + 1, $dy,     $B === $F ? $F : $E);//$E1
+                    imagesetpixel($newImage, $dx,     $dy + 1, $D === $H ? $D : $E);//$E2
+                    imagesetpixel($newImage, $dx + 1, $dy + 1, $H === $F ? $F : $E);//$E3
+                } else { //$E0 = $E1 = $E2 = $E3 = $E;
+                    imagefilledrectangle($newImage, $dx, $dy, $dx + 1, $dy + 1, $E);
+                }
+            }
+        $this->replaceImage($newImage);
+        return $this;
+    }
+    
+    /**
+     * Scale image using scale3x algorithm
+     * 
+     * @todo opimize border situations (x=y=0, y=width-1, x=width-1
+     * @link http://scale2x.sourceforge.net/algorithm.html
+     * @return Image
+     */
+    public function scale3x() {
+        $handle   = $this->handle;
+        $width    = $this->getWidth();
+        $height   = $this->getHeight();
+        $bg       = $this->getTransparentColor(true);
+        $newImage = self::createTrueColor($width * 3, $height * 3, $bg);
+        for ($y = 0, $dy = 0, $wl = $width-1, $hl = $height-1; $y < $height; ++$y, $dy+=3)
+            for ($x = 0, $dx = 0; $x < $width; ++$x, $dx+=3) {
+                #A (-1,-1)  B (0,-1) C (1,-1)
+                #D (-1,0)   E (0,0)  F (1,0)
+                #G (-1,1)   H (0,1)  I (1,1)        
+                $y1 = $y - 1;
+                $y2 = $y + 1;
+                $E  = imagecolorat($handle, $x,  $y);
+                if($y === 0)   $B = $E; else $B = imagecolorat($handle, $x,  $y1);
+                if($y === $hl) $H = $E; else $H = imagecolorat($handle, $x,  $y2);
+                if ($Z  = $B !== $H){
+                    $x1 = $x - 1;
+                    $x2 = $x + 1;
+                    if($x === 0)   $D = $E; else $D = imagecolorat($handle, $x1, $y);
+                    if($x === $wl) $F = $E; else $F = imagecolorat($handle, $x2, $y);
+                }
+                if ($Z && $D !== $F) {
+                    if($x === 0   || $y === 0)   $A = $E; else $A = imagecolorat($handle, $x1, $y1);
+                    if($x === $wl || $y === 0)   $C = $E; else $C = imagecolorat($handle, $x2, $y1);
+                    if($x === 0   || $y === $hl) $G = $E; else $G = imagecolorat($handle, $x1, $y2);
+                    if($x === $wl || $y === $hl) $I = $E; else $I = imagecolorat($handle, $x2, $y2);
+                    
+                    imagesetpixel($newImage, $dx,  $dy,   $D===$B?$D:$E);//$E0
+                    imagesetpixel($newImage, $dx+1,$dy,  ($D===$B&&$E!==$C)||($B===$F&&$E!==$A)?$B:$E);//$E1
+                    imagesetpixel($newImage, $dx+2,$dy,   $B===$F?$F:$E);//$E2
+                    imagesetpixel($newImage, $dx,  $dy+1,($D===$B&&$E!==$G)||($D===$H&&$E!==$A)?$D:$E);//$E3
+                    imagesetpixel($newImage, $dx+1,$dy+1, $E);//$E4
+                    imagesetpixel($newImage, $dx+2,$dy+1,($B===$F&&$E!==$I)||($H===$F&&$E!==$C)?$F:$E);//$E5
+                    imagesetpixel($newImage, $dx,  $dy+2, $D===$H?$D:$E);//$E6
+                    imagesetpixel($newImage, $dx+1,$dy+2,($D===$H&&$E!==$I)||($H===$F&&$E!==$G)?$H:$E);//$E7
+                    imagesetpixel($newImage, $dx+2,$dy+2, $H===$F?$F:$E);//$E8
+                } else {// $E0 = $E1 = $E2 = $E3 = $E4 = $E5 = $E6 = $E7 = $E8 = $E;
+                    imagefilledrectangle($newImage, $dx, $dy, $dx + 2, $dy + 2, $E);
+                }
             }
         $this->replaceImage($newImage);
         return $this;
