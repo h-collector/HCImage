@@ -16,7 +16,7 @@ try {
     $image2->save('out/trans1');
 
     //resize, trim, and paste over transparent image
-    $image1->resize(200, 200);
+    $image1->resize(200, 200, true, true);
     $image1->save('out/trans2');
     $image1->trim();
     $image1->getCanvas()->filledRectangle(20, 20, 50, 50, 0x50ff0000);
