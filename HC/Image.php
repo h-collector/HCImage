@@ -621,7 +621,7 @@ class Image {//\SplSubject
     }
 
     /**
-     * Crop or expand image to given size
+     * Crop, expand or copy region of image to given size
      * 
      * @see imagecopy
      * @uses Image::centeredBox()
@@ -629,11 +629,12 @@ class Image {//\SplSubject
      * @param int|'auto' $y       y position to crop from or 'auto' to auto center verticaly, negative to expand
      * @param int|null   $width   new or source width
      * @param int|null   $height  new or source height
-     * @param mixed      $bgColor padding color
+     * @param mixed      $bgColor new background/padding color
+     * @param bool       $copy    copy and return new image, this image will not be modified
      * @return Image
      * @throws RuntimeException
      */
-    public function crop($x = 0, $y = 0, $width = null, $height = null, $bgColor = null) {
+    public function crop($x = 0, $y = 0, $width = null, $height = null, $bgColor = null, $copy = false) {
         $srcWidth  = $this->getWidth();
         $srcHeight = $this->getHeight();
         $width     = $width ? $width : $srcWidth;
@@ -650,8 +651,36 @@ class Image {//\SplSubject
                         , $srcWidth, $srcHeight)) {
             throw new RuntimeException('Crop operation failed');
         }
-        $this->replaceImage($newImage);
-        return $this;
+        
+        return $copy ? new Image($newImage) : $this->replaceImage($newImage);
+    }
+    
+    /**
+     * Copy region of image
+     * 
+     * @uses Image::crop()
+     * @param int|'auto' $x       x position to copy from or 'auto' to auto center horizontaly, negative to use padding
+     * @param int|'auto' $y       y position to copy from or 'auto' to auto center verticaly, negative to use padding
+     * @param int|null   $width   width of region
+     * @param int|null   $height  height of region
+     * @param mixed      $bgColor new background/padding color
+     * @return Image
+     */
+    public function copyRegion($x = 0, $y = 0, $width = null, $height = null, $bgColor = null) {
+        return $this->crop($x, $y, $width, $height, $bgColor, true);
+    }
+    
+    /**
+     * Expand/shrink image to given dimensions
+     * 
+     * @uses Image::crop()
+     * @param int|null $width   new width
+     * @param int|null $height  new height
+     * @param mixed    $bgColor new background/padding color
+     * @return Image
+     */
+    public function expand($width = null, $height = null, $bgColor = null) {
+        return $this->crop(self::AUTO, self::AUTO, $width, $height, $bgColor);
     }
 
     /**
