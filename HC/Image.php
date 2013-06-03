@@ -477,8 +477,8 @@ class Image {//\SplSubject
         }
         if (false === $resizeFunc($newImage, $this->handle, $dstX, $dstY, 0, 0, $dstW, $dstH, $srcW, $srcH))
             throw new RuntimeException('Resize operation failed');
-        $this->replaceImage($newImage);
-        return $this;
+        
+        return $this->replaceImage($newImage);
     }
 
     /**
@@ -517,8 +517,7 @@ class Image {//\SplSubject
                     imagefilledrectangle($newImage, $dx, $dy, $dx + 1, $dy + 1, $E);
                 }
             }
-        $this->replaceImage($newImage);
-        return $this;
+        return $this->replaceImage($newImage);
     }
 
     /**
@@ -568,8 +567,7 @@ class Image {//\SplSubject
                     imagefilledrectangle($newImage, $dx, $dy, $dx + 2, $dy + 2, $E);
                 }
             }
-        $this->replaceImage($newImage);
-        return $this;
+        return $this->replaceImage($newImage);
     }
 
     /**
@@ -594,8 +592,8 @@ class Image {//\SplSubject
         $bgColor = $bgColor === null ? $this->getTransparentColor(true) : Color::get($bgColor);
         if (false === ($rotated = imagerotate($this->handle, $angle, $bgColor->toInt(), $ignoreTransparent)))
             throw new RuntimeException('Rotate operation failed');
-        $this->replaceImage($rotated);
-        return $this;
+        
+        return $this->replaceImage($rotated);
     }
 
     /**
@@ -651,7 +649,6 @@ class Image {//\SplSubject
                         , $srcWidth, $srcHeight)) {
             throw new RuntimeException('Crop operation failed');
         }
-        
         return $copy ? new Image($newImage) : $this->replaceImage($newImage);
     }
     
@@ -760,9 +757,7 @@ class Image {//\SplSubject
                 if (false === imagecopy($dest, $handle, $i, 0, ($width - 1) - $i, 0, 1, $height))
                     throw new RuntimeException('Horizontal flip operation failed');
         }
-
-        $this->replaceImage($dest);
-        return $this;
+        return $this->replaceImage($dest);
     }
 
     /**
@@ -919,8 +914,7 @@ class Image {//\SplSubject
             throw new ErrorException("Invalid image handle");
         imagedestroy($this->handle);
         $this->handle = $newImage;
-        $this->updateCanvas();
-        return $this;
+        return $this->updateCanvas();
     }
 
     /**
