@@ -2,6 +2,8 @@
 
 namespace HC\Helper;
 
+use HC\GDResource;
+
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -10,47 +12,51 @@ use RuntimeException;
  *
  * Helper class, wrapper around imageconvolution
  *
- * @package HC\Helper
+ * @package    HC
+ * @subpackage Helper
+ * 
  * @author  h-collector <githcoll@gmail.com>
- *          
  * @link    http://hcoll.onuse.pl/projects/view/HCImage
  * @license GNU LGPL (http://www.gnu.org/copyleft/lesser.html)
+ * 
+ * @uses GDResource
  */
 class Convolution {
 
-    private $handle = null;
+    private /** @var GDResource */ $resource = null;
 
     /**
      * Note: Sets imagealphablending to false
      * 
-     * @param resource $handle
+     * @param resource|GDResource $resource
      * @throws InvalidArgumentException
      */
-    public function __construct($handle) {
-        if (!is_resource($handle) || get_resource_type($handle) !== 'gd')
-            throw new InvalidArgumentException("Invalid image handle");
-        $this->handle = $handle;
-        imagealphablending($handle, false);
+    public function __construct($resource) {
+        if (!($resource instanceof GDResource))
+            $resource = new GDResource($resource);
+
+        imagealphablending($resource->gd, false);
+        $this->resource = $resource;
     }
 
     /**
      * Use convolution matrix on Image
      * 
-     * @see imageconvolution
+     * @see imageconvolution()
      * @param array   $matrix float[3][3]
      * @param integer $offset color offset
      * @return bool
      */
     public function convolution(array $matrix, $offset = 0) {
         $divisor = array_sum(array_map('array_sum', $matrix));
-        if (false === imageconvolution($this->handle, $matrix, $divisor, $offset))
+        if (false === imageconvolution($this->resource->gd, $matrix, $divisor, $offset))
             throw new RuntimeException('Appling ' . print_r($matrix, true) . ' as convolution matrix failed');
         return $this;
     }
 
     /**
      * 
-     * @see imageconvolution,imagefilter,IMG_FILTER_MEAN_REMOVAL
+     * @see imageconvolution(),imagefilter(),IMG_FILTER_MEAN_REMOVAL
      * @return Convolution
      * @throws RuntimeException
      */
@@ -64,7 +70,7 @@ class Convolution {
 
     /**
      * 
-     * @see imageconvolution
+     * @see imageconvolution()
      * @return Convolution
      * @throws RuntimeException
      */
@@ -78,7 +84,7 @@ class Convolution {
 
     /**
      * 
-     * @see imageconvolution
+     * @see imageconvolution()
      * @return Convolution
      * @throws RuntimeException
      */
@@ -92,7 +98,7 @@ class Convolution {
 
     /**
      * 
-     * @see imageconvolution,imagefilter,IMG_FILTER_SMOOTH
+     * @see imageconvolution(),imagefilter(),IMG_FILTER_SMOOTH
      * @return Convolution
      * @throws RuntimeException
      */
@@ -106,7 +112,7 @@ class Convolution {
 
     /**
      * 
-     * @see imageconvolution
+     * @see imageconvolution()
      * @return Convolution
      * @throws RuntimeException
      */
@@ -119,7 +125,7 @@ class Convolution {
     }
 
     /**
-     * @see imageconvolution,imagefilter,IMG_FILTER_GAUSSIAN_BLUR,IMG_FILTER_SELECTIIVE_BLUR
+     * @see imageconvolution(),imagefilter(),IMG_FILTER_GAUSSIAN_BLUR,IMG_FILTER_SELECTIIVE_BLUR
      * @return Convolution
      * @throws RuntimeException
      */
@@ -133,7 +139,7 @@ class Convolution {
 
     /**
      * 
-     * @see imageconvolution,imagefilter,IMG_FILTER_EMBOSS
+     * @see imageconvolution(),imagefilter(),IMG_FILTER_EMBOSS
      * @return Convolution
      * @throws RuntimeException
      */
@@ -147,7 +153,7 @@ class Convolution {
 
     /**
      * 
-     * @see imageconvolution,imagefilter,IMG_FILTER_EMBOSS
+     * @see imageconvolution(),imagefilter(),IMG_FILTER_EMBOSS
      * @return Convolution
      * @throws RuntimeException
      */
@@ -161,7 +167,7 @@ class Convolution {
 
     /**
      * 
-     * @see imageconvolution,imagefilter,IMG_FILTER_EDGEDETECT
+     * @see imageconvolution(),imagefilter(),IMG_FILTER_EDGEDETECT
      * @return Convolution
      * @throws RuntimeException
      */
@@ -175,7 +181,7 @@ class Convolution {
 
     /**
      * 
-     * @see imageconvolution,imagefilter,IMG_FILTER_EDGEDETECT
+     * @see imageconvolution(),imagefilter(),IMG_FILTER_EDGEDETECT
      * @return Convolution
      * @throws RuntimeException
      */

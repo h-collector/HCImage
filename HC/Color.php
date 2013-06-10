@@ -5,9 +5,10 @@ namespace HC;
 use InvalidArgumentException;
 
 /**
+ * Color converter
+ * 
  * @package HC
  * @author  h-collector <githcoll@gmail.com>
- *          
  * @link    http://hcoll.onuse.pl/projects/view/HCImage
  * @license GNU LGPL (http://www.gnu.org/copyleft/lesser.html)
  */

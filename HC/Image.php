@@ -2,6 +2,10 @@
 
 namespace HC;
 
+use HC\Color;
+use HC\Canvas;
+use HC\GDResource;
+
 use Exception;
 use ErrorException;
 use RuntimeException;
@@ -13,24 +17,27 @@ use stdClass;
  * Image
  *
  * @package HC
+ * 
  * @author  h-collector <githcoll@gmail.com>
- *          
- * @link    http://hcoll.onuse.pl/view/HCImage
+ * @link    http://hcoll.onuse.pl/projects/view/HCImage
  * @license GNU LGPL (http://www.gnu.org/copyleft/lesser.html)
+ * 
+ * @uses    GDResource
  */
-class Image {//\SplSubject
+class Image {
 
-    private /** @var resource */ $handle      = null,
-            /** @var string   */ $imageType   = IMAGETYPE_PNG, //'gd',
-            /** @var string   */ $sourceFile  = '',
-            /** @var Canvas   */ $canvas      = null,
-            /** @var int      */ $transparent = 0;
+    private /** @var GDResource */ $resource    = null,
+            /** @var string     */ $imageType   = IMAGETYPE_PNG, //'gd',
+            /** @var string     */ $sourceFile  = '',
+            /** @var Canvas     */ $canvas      = null,
+            /** @var int        */ $transparent = 0;
 
     const /** @var string   */ AUTO = 'auto'; //center merge or crop
 
     /**
      * Create new image from disk, url or binary string
      * 
+     * @uses GDResource::check()
      * @see Image::load()
      * @param string|resource|Canvas|Image $image      filepath, url binary string, 
      *                                                 Image to copy, Canvas to own
@@ -41,12 +48,12 @@ class Image {//\SplSubject
 
     public function __construct($image, $fromString = false, $forceAlpha = true) {
         if ($image instanceof Image) {//clone image
-            $this->handle = $image->copyAsTrueColorGDImage($forceAlpha);
+            $this->resource = new GDResource($image->copyAsTrueColorGDImage($forceAlpha));
         } elseif ($image instanceof Canvas) {
-            $this->handle = $image->getHandle();
+            $this->resource = $image->getGDResource();
             $this->canvas = $image;
-        } elseif (self::isValidImageHandle($image)) {
-            $this->handle = $image;
+        } elseif (GDResource::check($image)) {
+            $this->resource = new GDResource($image, false);
         } elseif ($fromString) {
             $this->loadFromString($image);
         } elseif (is_string($image)) {
@@ -55,8 +62,8 @@ class Image {//\SplSubject
         else
             throw new InvalidArgumentException('Unknown image data');
 
-        if (imageistruecolor($this->handle)) {
-            imagesavealpha($this->handle, true);
+        if (imageistruecolor($this->resource->gd)) {
+            imagesavealpha($this->resource->gd, true);
         } elseif ($forceAlpha) {
             //imagepalettetotruecolor 
             $this->replaceImage($this->copyAsTrueColorGDImage($forceAlpha));
@@ -64,9 +71,7 @@ class Image {//\SplSubject
     }
 
     public function __destruct() {
-        if (self::isValidImageHandle($this->handle))
-            imagedestroy($this->handle);
-        unset($this->canvas, $this->handle);
+        unset($this->canvas, $this->resource);
     }
 
     /**
@@ -78,8 +83,8 @@ class Image {//\SplSubject
      * @return Image
      */
     public static function create($width, $height, $bg = null) {
-        $handle = self::createTrueColor($width, $height, $bg);
-        return new self($handle);
+        $gd = self::createTrueColor($width, $height, $bg);
+        return new self($gd);
     }
 
     /**
@@ -91,10 +96,10 @@ class Image {//\SplSubject
      * @return resource handle to new image
      */
     private static function createTrueColor($width, $height, $bg = null) {
-        $handle = imagecreatetruecolor((int) $width, (int) $height);
-        $bg !== -1 && imagefill($handle, 0, 0, Color::index($bg));
-        imagesavealpha($handle, true);
-        return $handle;
+        $gd = imagecreatetruecolor((int) $width, (int) $height);
+        $bg !== -1 && imagefill($gd, 0, 0, Color::index($bg));
+        imagesavealpha($gd, true);
+        return $gd;
     }
 
     /**
@@ -112,28 +117,20 @@ class Image {//\SplSubject
     }
 
     /**
-     * Check if image handle is valid
-     * 
-     * @param resource $handlehandle to image resource
-     * @return bool true if is valid
-     */
-    public static function isValidImageHandle($handle) {
-        return (is_resource($handle) && get_resource_type($handle) === 'gd');
-    }
-
-    /**
      * Load image from binary string
      * (does not convert to 32bit truecolor)
      * 
-     * @see finfo
-     * @see imagecreatefromstring
+     * @uses GDResource::check()
+     * @see finfo,imagecreatefromstring()
      * @param string $data binary data
      * @throws RuntimeException
      */
     private function loadFromString($data) {
-        $this->handle = imagecreatefromstring($data);
-        if (!self::isValidImageHandle($this->handle))
+        $gd = imagecreatefromstring($data);
+        if (!GDResource::check($gd))
             throw new RuntimeException("Could not create image from data");
+
+        $this->resource = new GDResource($gd, false);
 
         $mimetypes = array(
             'image/gif'  => IMAGETYPE_GIF,
@@ -150,11 +147,8 @@ class Image {//\SplSubject
      * Load image from disk or url
      * (does not convert to 32bit truecolor)
      * 
-     * @see exif_imagetype
-     * @see getimagesize
-     * @see imagecreatefromjpeg,
-     * @see imagecreatefrompng
-     * @see imagecreatefromgif
+     * @uses GDResource::check()
+     * @see exif_imagetype(),getimagesize(),imagecreatefromjpeg(),imagecreatefrompng(),imagecreatefromgif()
      * @param string $filename filepath or url to image
      * @throws \RuntimeException|\InvalidArgumentException
      */
@@ -171,20 +165,21 @@ class Image {//\SplSubject
 
         switch ($this->imageType) {
             case IMAGETYPE_JPEG:
-                $this->handle = imagecreatefromjpeg($filename);
+                $gd = imagecreatefromjpeg($filename);
                 break;
             case IMAGETYPE_GIF:
-                $this->handle = imagecreatefromgif($filename);
+                $gd = imagecreatefromgif($filename);
                 break;
             case IMAGETYPE_PNG:
-                $this->handle = imagecreatefrompng($filename);
+                $gd = imagecreatefrompng($filename);
                 break;
             default:
                 throw new RuntimeException("Image type [$this->imageType] not supported");
         }
-        if (!self::isValidImageHandle($this->handle))
+        if (!GDResource::check($gd))
             throw new RuntimeException("Coulnd't load image [$filename]");
-
+        
+        $this->resource     = new GDResource($gd, false);
         $this->sourceFile = $filename;
     }
 
@@ -192,7 +187,7 @@ class Image {//\SplSubject
      * Save image to disk
      * 
      * @uses Image::saveOrOutput()
-     * @see chmod
+     * @see chmod()
      * @param bool|string     $filename     filepath or false for the same as source
      * @param bool|int|string $imageType    type of image or false for the same as source
      * @param bool|int        $quality      quality or compression level 
@@ -280,14 +275,14 @@ class Image {//\SplSubject
         }
 
         switch ($imageType) {
-            case IMAGETYPE_JPEG: $success = imagejpeg($this->handle, $filename, $quality ? $quality : 85);
+            case IMAGETYPE_JPEG: $success = imagejpeg($this->resource->gd, $filename, $quality ? $quality : 85);
                 break;
-            case IMAGETYPE_GIF: $success = imagegif($this->handle, $filename);
+            case IMAGETYPE_GIF: $success = imagegif($this->resource->gd, $filename);
                 break;
             case IMAGETYPE_PNG:
                 $quality = $quality ? $quality : 6;
                 $filters = $quality === 9 ? PNG_ALL_FILTERS : null;
-                $success = imagepng($this->handle, $filename, $quality, $filters);
+                $success = imagepng($this->resource->gd, $filename, $quality, $filters);
                 break;
         }
         if ($success && $filename !== null) {
@@ -311,16 +306,7 @@ class Image {//\SplSubject
             default: return $extension;
         }
     }
-
-    /**
-     * Get image resource handle
-     * 
-     * @return resource
-     */
-    private function getHandle() {
-        return $this->handle;
-    }
-
+    
     /**
      * Get image type
      * 
@@ -345,7 +331,7 @@ class Image {//\SplSubject
      * @return int
      */
     public function getWidth() {
-        return imagesx($this->handle);
+        return imagesx($this->resource->gd);
     }
 
     /**
@@ -354,20 +340,18 @@ class Image {//\SplSubject
      * @return int
      */
     public function getHeight() {
-        return imagesy($this->handle);
+        return imagesy($this->resource->gd);
     }
 
     /**
      * Get image transparent color
      * 
-     * @see imagecolortransparent
-     * @see  Color::clear()
-     * @see  Color::fromInt
+     * @see imagecolortransparent(),Color::clear(),Color::fromInt()
      * @param bool $returnObj return color object or index
      * @return Color|int
      */
     public function getTransparentColor($returnObj = false, $noAlpha = false) {
-        $color = imagecolortransparent($this->handle);
+        $color = imagecolortransparent($this->resource->gd);
         if ($noAlpha)
             $color = ($color === -1) ? $this->transparent : $color & 0x00ffffff;
         if ($returnObj) {
@@ -383,20 +367,20 @@ class Image {//\SplSubject
     /**
      * Set transparent color for image
      * 
-     * @see imagecolortransparent
+     * @see imagecolortransparent()
      * @param mixed $color 
      * @return int
      */
     public function setTransparentColor($color = null) {
         $this->transparent = Color::index($color);
-        return imagecolortransparent($this->handle, $this->transparent);
+        return imagecolortransparent($this->resource->gd, $this->transparent);
     }
 
     /**
      * Resize image to height with aspect ratio
      * 
-     * @see imagecopyresampled
-     * @see imagecopyresized
+     * @see imagecopyresampled(),imagecopyresized()
+     * @uses Image::resize()
      * @param int  $height   new height
      * @param bool $resample resample or not
      * @return Image
@@ -410,8 +394,8 @@ class Image {//\SplSubject
     /**
      * Resize image to width with aspect ratio
      * 
-     * @see imagecopyresampled
-     * @see imagecopyresized
+     * @see imagecopyresampled(),imagecopyresized()
+     * @uses Image::resize()
      * @param int  $width    new image width
      * @param bool $resample
      * @return Image
@@ -425,8 +409,8 @@ class Image {//\SplSubject
     /**
      * Scale image
      * 
-     * @see imagecopyresampled
-     * @see imagecopyresized
+     * @see imagecopyresampled(),imagecopyresized()
+     * @uses Image::resize()
      * @param int  $scale    percent
      * @param bool $resample
      * @return Image
@@ -475,7 +459,7 @@ class Image {//\SplSubject
                 $dstX = (int) (($width - $dstW) / 2);
             }
         }
-        if (false === $resizeFunc($newImage, $this->handle, $dstX, $dstY, 0, 0, $dstW, $dstH, $srcW, $srcH))
+        if (false === $resizeFunc($newImage, $this->resource->gd, $dstX, $dstY, 0, 0, $dstW, $dstH, $srcW, $srcH))
             throw new RuntimeException('Resize operation failed');
         
         return $this->replaceImage($newImage);
@@ -491,7 +475,7 @@ class Image {//\SplSubject
      * @return Image
      */
     public function scale2x() {
-        $handle   = $this->handle;
+        $gd       = $this->resource->gd;
         $width    = $this->getWidth();
         $height   = $this->getHeight();
         $bg       = $this->getTransparentColor(true);
@@ -501,12 +485,12 @@ class Image {//\SplSubject
                 #A (-1,-1)  B (0,-1) C (1,-1)
                 #D (-1,0)   E (0,0)  F (1,0)
                 #G (-1,1)   H (0,1)  I (1,1)
-                $E  = imagecolorat($handle, $x,  $y);
-                if($y === 0)   $B = $E; else $B = imagecolorat($handle, $x,  $y - 1);
-                if($y === $hl) $H = $E; else $H = imagecolorat($handle, $x,  $y + 1);
+                $E  = imagecolorat($gd, $x,  $y);
+                if($y === 0)   $B = $E; else $B = imagecolorat($gd, $x,  $y - 1);
+                if($y === $hl) $H = $E; else $H = imagecolorat($gd, $x,  $y + 1);
                 if ($Z  = $B !== $H){
-                    if($x === 0)   $D = $E; else $D = imagecolorat($handle, $x - 1, $y);
-                    if($x === $wl) $F = $E; else $F = imagecolorat($handle, $x + 1, $y);
+                    if($x === 0)   $D = $E; else $D = imagecolorat($gd, $x - 1, $y);
+                    if($x === $wl) $F = $E; else $F = imagecolorat($gd, $x + 1, $y);
                 }
                 if ($Z && $D !== $F) {
                     imagesetpixel($newImage, $dx,     $dy,     $D === $B ? $D : $E);//$E0
@@ -527,7 +511,7 @@ class Image {//\SplSubject
      * @return Image
      */
     public function scale3x() {
-        $handle   = $this->handle;
+        $gd       = $this->resource->gd;
         $width    = $this->getWidth();
         $height   = $this->getHeight();
         $bg       = $this->getTransparentColor(true);
@@ -539,20 +523,20 @@ class Image {//\SplSubject
                 #G (-1,1)   H (0,1)  I (1,1)        
                 $y1 = $y - 1;
                 $y2 = $y + 1;
-                $E  = imagecolorat($handle, $x,  $y);
-                if($y === 0)   $B = $E; else $B = imagecolorat($handle, $x,  $y1);
-                if($y === $hl) $H = $E; else $H = imagecolorat($handle, $x,  $y2);
+                $E  = imagecolorat($gd, $x,  $y);
+                if($y === 0)   $B = $E; else $B = imagecolorat($gd, $x,  $y1);
+                if($y === $hl) $H = $E; else $H = imagecolorat($gd, $x,  $y2);
                 if ($Z  = $B !== $H){
                     $x1 = $x - 1;
                     $x2 = $x + 1;
-                    if($x === 0)   $D = $E; else $D = imagecolorat($handle, $x1, $y);
-                    if($x === $wl) $F = $E; else $F = imagecolorat($handle, $x2, $y);
+                    if($x === 0)   $D = $E; else $D = imagecolorat($gd, $x1, $y);
+                    if($x === $wl) $F = $E; else $F = imagecolorat($gd, $x2, $y);
                 }
                 if ($Z && $D !== $F) {
-                    if($x === 0   || $y === 0)   $A = $E; else $A = imagecolorat($handle, $x1, $y1);
-                    if($x === $wl || $y === 0)   $C = $E; else $C = imagecolorat($handle, $x2, $y1);
-                    if($x === 0   || $y === $hl) $G = $E; else $G = imagecolorat($handle, $x1, $y2);
-                    if($x === $wl || $y === $hl) $I = $E; else $I = imagecolorat($handle, $x2, $y2);
+                    if($x === 0   || $y === 0)   $A = $E; else $A = imagecolorat($gd, $x1, $y1);
+                    if($x === $wl || $y === 0)   $C = $E; else $C = imagecolorat($gd, $x2, $y1);
+                    if($x === 0   || $y === $hl) $G = $E; else $G = imagecolorat($gd, $x1, $y2);
+                    if($x === $wl || $y === $hl) $I = $E; else $I = imagecolorat($gd, $x2, $y2);
                     
                     imagesetpixel($newImage, $dx,  $dy,   $D===$B?$D:$E);//$E0
                     imagesetpixel($newImage, $dx+1,$dy,  ($D===$B&&$E!==$C)||($B===$F&&$E!==$A)?$B:$E);//$E1
@@ -573,7 +557,7 @@ class Image {//\SplSubject
     /**
      * Rotate image
      * 
-     * @see imagerotate
+     * @see imagerotate()
      * @param float $angle             rotate image clockwise [0-360deg]
      * @param mixed $bgColor           padding color
      * @param int   $ignoreTransparent If set and non-zero, transparent colors 
@@ -590,7 +574,7 @@ class Image {//\SplSubject
             return $this;
 
         $bgColor = $bgColor === null ? $this->getTransparentColor(true) : Color::get($bgColor);
-        if (false === ($rotated = imagerotate($this->handle, $angle, $bgColor->toInt(), $ignoreTransparent)))
+        if (false === ($rotated = imagerotate($this->resource->gd, $angle, $bgColor->toInt(), $ignoreTransparent)))
             throw new RuntimeException('Rotate operation failed');
         
         return $this->replaceImage($rotated);
@@ -621,7 +605,7 @@ class Image {//\SplSubject
     /**
      * Crop, expand or copy region of image to given size
      * 
-     * @see imagecopy
+     * @see imagecopy()
      * @uses Image::centeredBox()
      * @param int|'auto' $x       x position to crop from or 'auto' to auto center horizontaly, negative to expand
      * @param int|'auto' $y       y position to crop from or 'auto' to auto center verticaly, negative to expand
@@ -644,7 +628,7 @@ class Image {//\SplSubject
         }
         $bgColor  = $bgColor === null ? $this->getTransparentColor(true) : $bgColor;
         $newImage = self::createTrueColor($width, $height, $bgColor);
-        if (false === imagecopy($newImage, $this->handle
+        if (false === imagecopy($newImage, $this->resource->gd
                         , -min($x, 0), -min($y, 0), max(0, $x), max(0, $y)
                         , $srcWidth, $srcHeight)) {
             throw new RuntimeException('Crop operation failed');
@@ -683,9 +667,7 @@ class Image {//\SplSubject
     /**
      * Merge 2 images
      * 
-     * @see imagecopy
-     * @see imagecopymergegray
-     * @see imagecopymerge
+     * @see imagecopy(),imagecopymergegray(),imagecopymerge()
      * @param Color       $image image to merge with
      * @param int|'auto' $x      x position to start from or 'auto' to auto center horizontaly, can be negative
      * @param int|'auto' $y      y position to start from or 'auto' to auto center verticaly, can be negative
@@ -701,7 +683,7 @@ class Image {//\SplSubject
         }
         switch ($pct) {
             case 100 : $func = 'imagecopy'; //imagecopymerge, function.imagecopymerge.html#92787?
-                if (false === imagecopy($this->handle, $image->handle
+                if (false === imagecopy($this->resource->gd, $image->resource->gd
                                 , max(0, $x), max(0, $y), -min($x, 0), -min($y, 0)
                                 , $image->getWidth(), $image->getHeight())) {
                     throw new RuntimeException('Merge operation failed');
@@ -720,41 +702,41 @@ class Image {//\SplSubject
                 $func = 'imagecopymerge';
                 break;
         }
-        if (false === $func($this->handle, $image->handle
+        if (false === $func($this->resource->gd, $image->resource->gd
                         , max(0, $x), max(0, $y), -min($x, 0), -min($y, 0)
                         , $image->getWidth(), $image->getHeight(), $pct)) {
             throw new RuntimeException('Merge operation failed');
         }
         return $this;
     }
-
+    
     /**
      * Flip image verticaly or horizontaly 
      * 
-     * @see imagecopy
+     * @see imagecopy()
      * @param bool $vertical flip image verticaly
      * @return Image
      * @throws RuntimeException
      */
     public function flip($vertical = true) {
         if (function_exists('imageflip')) {//php 5.5
-            if (false === imageflip($this->handle, $vertical ? IMG_FLIP_VERTICAL : IMG_FLIP_HORIZONTAL))
+            if (false === imageflip($this->resource->gd, $vertical ? IMG_FLIP_VERTICAL : IMG_FLIP_HORIZONTAL))
                 throw new RuntimeException('Image flip operation failed');
             return $this;
         }
         
-        $handle = $this->handle;
+        $gd     = $this->resource->gd;
         $width  = $this->getWidth();
         $height = $this->getHeight();
         $dest   = self::createTrueColor($width, $height);
 
         if ($vertical) {
             for ($i = 0; $i < $height; $i++)
-                if (false === imagecopy($dest, $handle, 0, $i, 0, ($height - 1) - $i, $width, 1))
+                if (false === imagecopy($dest, $gd, 0, $i, 0, ($height - 1) - $i, $width, 1))
                     throw new RuntimeException('Vertical flip operation failed');
         } else {
             for ($i = 0; $i < $width; $i++)
-                if (false === imagecopy($dest, $handle, $i, 0, ($width - 1) - $i, 0, 1, $height))
+                if (false === imagecopy($dest, $gd, $i, 0, ($width - 1) - $i, 0, 1, $height))
                     throw new RuntimeException('Horizontal flip operation failed');
         }
         return $this->replaceImage($dest);
@@ -768,8 +750,8 @@ class Image {//\SplSubject
      * @return stdClass  {l,t,r,b,w,h}
      */
     public function trimmedBox($color = -1) {
-        $handle  = $this->handle;
-        $color   = $color === -1 ? imagecolorat($handle, 0, 0) : Color::index($color);
+        $gd      = $this->resource->gd;
+        $color   = $color === -1 ? imagecolorat($gd, 0, 0) : Color::index($color);
         $width   = $this->getWidth();
         $height  = $this->getHeight();
         $bTop    = 0;
@@ -779,7 +761,7 @@ class Image {//\SplSubject
         //top
         for (; $bTop < $height; ++$bTop)
             for ($x = 0; $x < $width; ++$x)
-                if (imagecolorat($handle, $x, $bTop) !== $color)
+                if (imagecolorat($gd, $x, $bTop) !== $color)
                     break 2;
         // return false when all pixels are trimmed
         if ($bTop === $height)
@@ -787,17 +769,17 @@ class Image {//\SplSubject
         // bottom
         for (; $bBottom >= 0; --$bBottom)
             for ($x = 0; $x < $width; ++$x)
-                if (imagecolorat($handle, $x, $bBottom) !== $color)
+                if (imagecolorat($gd, $x, $bBottom) !== $color)
                     break 2;
         // left
         for (; $bLeft < $width; ++$bLeft)
             for ($y = $bTop; $y <= $bBottom; ++$y)
-                if (imagecolorat($handle, $bLeft, $y) !== $color)
+                if (imagecolorat($gd, $bLeft, $y) !== $color)
                     break 2;
         // right
         for (; $bRight >= 0; --$bRight)
             for ($y = $bTop; $y <= $bBottom; ++$y)
-                if (imagecolorat($handle, $bRight, $y) !== $color)
+                if (imagecolorat($gd, $bRight, $y) !== $color)
                     break 2;
         ++$bBottom;
         ++$bRight;
@@ -848,11 +830,11 @@ class Image {//\SplSubject
             'ratio'      => 0
         );
 
-        $srcHandle  = $this->handle;
-        $destHandle = $image->getHandle();
+        $srcHandle  = $this->resource->gd;
+        $destHandle = $image->resource->gd;
         if ($diffImage) {
             $diffImage  = clone $this; //Image::create($width, $height);
-            $diffHandle = $diffImage->getHandle();
+            $diffHandle = $diffImage->resource->gd;
             $diffCanvas = $diffImage->getCanvas();
             $diffCanvas->filter(IMG_FILTER_GRAYSCALE);
             $diffCanvas->filter(IMG_FILTER_BRIGHTNESS, 200);
@@ -886,9 +868,9 @@ class Image {//\SplSubject
      * @return array number of pixels with specified color (index  for paletted)
      */
     public function histogram() {
-        for ($y = 0, $w = $this->getWidth(), $h = $this->getHeight(), $img = $this->handle; $y < $h; ++$y)
+        for ($y = 0, $w = $this->getWidth(), $h = $this->getHeight(), $gd = $this->resource->gd; $y < $h; ++$y)
             for ($x = 0; $x < $w; ++$x) {
-                $c = imagecolorat($img, $x, $y);
+                $c = imagecolorat($gd, $x, $y);
                 if (isset($colors[$c])) {
                     ++$colors[$c];
                 } else {
@@ -898,23 +880,48 @@ class Image {//\SplSubject
         ksort($colors);
         return $colors;
     }
+    
+     /**
+     * Calculate average image luminance
+     * 
+     * @return number avg luminance
+     */
+    public function getAverageLuminance() {
+        $width        = $this->getWidth();
+        $height       = $this->getHeight();
+        $gd           = $this->resource->gd;
+        $luminanceSum = 0;
+        for ($y = 0; $y < $height; ++$y) {
+            for ($x = 0; $x < $width; ++$x) {
+                $rgb = imagecolorat($gd, $x, $y);
+                //$rgb = imagecolorsforindex($gd, $rgb);
+                $r   = ($rgb >> 16) & 0xFF;
+                $g   = ($rgb >> 8) & 0xFF;
+                $b   = ($rgb) & 0xFF;
+                $luminanceSum += (0.30 * $r) + (0.59 * $g) + (0.11 * $b);
+            }
+        }
+        return $luminanceSum / ($width * $height);
+    }
 
     /**
      * Replace image
      * 
-     * @param Image|resource $newImage image to replace with or image resource handle
+     * @param Image|Canvas|GDResource|resource $newImage image to replace with or image resource handle
      * @return Image
-     * @throws ErrorException
+     * @throws InvalidArgumentException
      */
     public function replaceImage($newImage) {
         if ($newImage instanceof Image)
-            $newImage = $newImage->getHandle(); //copyAsTrueColorGDImage() ?
-
-        if (!self::isValidImageHandle($newImage))
-            throw new ErrorException("Invalid image handle");
-        imagedestroy($this->handle);
-        $this->handle = $newImage;
-        return $this->updateCanvas();
+            $newImage = $newImage->resource; //copyAsTrueColorGDImage() ?
+        if ($newImage instanceof Canvas)
+            $newImage = $newImage->getGDResource();
+        if(false === $this->resource->replace($newImage))
+            throw new InvalidArgumentException('Invalid image handle');
+        
+        if (isset($this->canvas))
+            $this->canvas->update();
+        return $this;
     }
 
     /**
@@ -924,19 +931,8 @@ class Image {//\SplSubject
      */
     public function getCanvas() {
         if ($this->canvas === null)
-            $this->canvas = new Canvas($this->handle, false);
+            $this->canvas = new Canvas($this->resource);
         return $this->canvas;
-    }
-
-    /**
-     * Update canvas handle
-     * 
-     * @return Image
-     */
-    public function updateCanvas() {
-        if (isset($this->canvas))
-            $this->canvas->updateHandle($this->handle, false);
-        return $this;
     }
 
     /**
@@ -955,7 +951,7 @@ class Image {//\SplSubject
             $bg |= 0x7f000000;
         }
         $newImage = self::createTrueColor($width, $height, $bg);
-        if (false === imagecopy($newImage, $this->handle, 0, 0, 0, 0, $width, $height))
+        if (false === imagecopy($newImage, $this->resource->gd, 0, 0, 0, 0, $width, $height))
             throw new RuntimeException('Copy operation failed');
 
         //copy and save transparency
@@ -1009,7 +1005,7 @@ class Image {//\SplSubject
     }
 
     public function __clone() {
-        $this->handle = $this->copyAsTrueColorGDImage();
+        $this->resource = new GDResource($this->copyAsTrueColorGDImage());
         $this->canvas = null;
     }
 

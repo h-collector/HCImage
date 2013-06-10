@@ -10,12 +10,14 @@ use InvalidArgumentException;
 /**
  * Some useful methods for Canvas::pixelOperation
  *
- * @package HC\Helper
+ * @package    HC
+ * @subpackage Helper
+ * 
  * @author  h-collector <githcoll@gmail.com>
- *          
- * @link    http://hcoll.onuse.pl/view/HCImage
+ * @link    http://hcoll.onuse.pl/projects/view/HCImage
  * @license GNU LGPL (http://www.gnu.org/copyleft/lesser.html)
  * 
+ * @uses   Canvas
  * @method HC\Canvas transparency($alpha)
  * @method HC\Canvas saltAndPepper($factor = 20, $salt = 0x00ffffff, $pepper = 0x00000000)
  * @method HC\Canvas noise($factor = 100)

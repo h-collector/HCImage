@@ -2,6 +2,8 @@
 
 namespace HC\Helper;
 
+use HC\GDResource;
+
 use InvalidArgumentException;
 use OutOfBoundsException;
 use RuntimeException;
@@ -9,32 +11,36 @@ use RuntimeException;
 /**
  * Helper class, wrapper around imagefilter
  *
- * @package HC\Helper
+ * @package    HC
+ * @subpackage Helper
+ * 
  * @author  h-collector <githcoll@gmail.com>
- *          
  * @link    http://hcoll.onuse.pl/projects/view/HCImage
  * @license GNU LGPL (http://www.gnu.org/copyleft/lesser.html)
+ * 
+ * @uses GDResource
  */
 class Filter {
 
-    private $handle = null;
+    private /** @var GDResource */ $resource = null;
 
     /**
      * Note: Sets imagealphablending to false
      * 
-     * @param resource $handle
+     * @param resource|GDResource $resource
      * @throws InvalidArgumentException
      */
-    public function __construct($handle) {
-        if (!is_resource($handle) || get_resource_type($handle) !== 'gd')
-            throw new InvalidArgumentException("Invalid image handle");
-        $this->handle = $handle;
-        imagealphablending($handle, false);
+    public function __construct($resource) {
+        if (!($resource instanceof GDResource))
+            $resource = new GDResource($resource);
+ 
+        imagealphablending($resource->gd, false);
+        $this->resource = $resource;
     }
 
     /**
      * 
-     * @see imagefilter
+     * @see imagefilter()
      * @param int $brightness -255 = min brightness, 0 = no change, +255 = max brightness
      * @return Filter
      * @throws RuntimeException
@@ -43,14 +49,14 @@ class Filter {
     public function brightness($brightness) {
         if (-255 > $brightness || $brightness > 255)
             throw new OutOfBoundsException("In " . __METHOD__ . " value of brightness out of bounds -255 < $brightness < 255");
-        if (false === imagefilter($this->handle, IMG_FILTER_BRIGHTNESS, $brightness))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_BRIGHTNESS, $brightness))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
 
     /**
      * 
-     * @see imagefilter
+     * @see imagefilter()
      * @param int $contrast -100 = max contrast, 0 = no change, +100 = min contrast
      * @return Filter
      * @throws RuntimeException
@@ -59,7 +65,7 @@ class Filter {
     public function contrast($contrast) {
         if (-100 > $contrast || $contrast > 100)
             throw new OutOfBoundsException("In " . __METHOD__ . " value of contrast out of bounds -100 < $contrast < 100");
-        if (false === imagefilter($this->handle, IMG_FILTER_CONTRAST, $contrast))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_CONTRAST, $contrast))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
@@ -67,7 +73,7 @@ class Filter {
     /**
      * Adds (subtracts) specified RGB values to each pixel. 
      * 
-     * @see imagefilter
+     * @see imagefilter()
      * @param int $red   -255 = min, 0 = no change, +255 = max
      * @param int $green -255 = min, 0 = no change, +255 = max
      * @param int $blue  -255 = min, 0 = no change, +255 = max
@@ -85,7 +91,7 @@ class Filter {
             throw new OutOfBoundsException("In " . __METHOD__ . " value of blue out of bounds -255 <= $blue <= 255");
         if (-127 > $alpha || $alpha > 127)
             throw new OutOfBoundsException("In " . __METHOD__ . " value of alpha out of bounds -127 <= $alpha <= 127");
-        if (false === imagefilter($this->handle, IMG_FILTER_COLORIZE, $red, $green, $blue, $alpha))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_COLORIZE, $red, $green, $blue, $alpha))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
@@ -98,104 +104,104 @@ class Filter {
      * [1.0   1.0   1.0]
      * The result is normalized by dividing by $weight + 8.0
      * 
-     * @see imagefilter,imageconvolution
+     * @see imagefilter(),imageconvolution()
      * @param float $weight smothness level
      * @return Filter
      * @throws RuntimeException
      */
     public function smooth($weight) {
-        if (false === imagefilter($this->handle, IMG_FILTER_SMOOTH, $weight))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_SMOOTH, $weight))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
 
     /**
      * 
-     * @see imagefilter
+     * @see imagefilter()
      * @param int $blocksize block size in pixels
      * @param bool $advanced use advanced pixelation effect
      * @return Filter
      * @throws RuntimeException
      */
     public function pixelate($blocksize, $advanced = false) {
-        if (false === imagefilter($this->handle, IMG_FILTER_PIXELATE, $blocksize, $advanced))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_PIXELATE, $blocksize, $advanced))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
 
     /**
-     * @see imagefilter
+     * @see imagefilter()
      * @return Filter
      * @throws RuntimeException
      */
     public function negate() {
-        if (false === imagefilter($this->handle, IMG_FILTER_NEGATE))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_NEGATE))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
 
     /**
-     * @see imagefilter
+     * @see imagefilter()
      * @return Filter
      * @throws RuntimeException
      */
     public function grayScale() {
-        if (false === imagefilter($this->handle, IMG_FILTER_GRAYSCALE))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_GRAYSCALE))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
 
     /**
-     * @see imagefilter,imageconvolution
+     * @see imagefilter(),imageconvolution()
      * @return Filter
      * @throws RuntimeException
      */
     public function emboss() {
-        if (false === imagefilter($this->handle, IMG_FILTER_EMBOSS))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_EMBOSS))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
 
     /**
-     * @see imagefilter,imageconvolution
+     * @see imagefilter(),imageconvolution()
      * @return Filter
      * @throws RuntimeException
      */
     public function meanRemoval() {
-        if (false === imagefilter($this->handle, IMG_FILTER_MEAN_REMOVAL))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_MEAN_REMOVAL))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
 
     /**
-     * @see imagefilter,imageconvolution
+     * @see imagefilter(),imageconvolution()
      * @return Filter
      * @throws RuntimeException
      */
     public function edgeDetect() {
-        if (false === imagefilter($this->handle, IMG_FILTER_EDGEDETECT))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_EDGEDETECT))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
 
     /**
-     * @see imagefilter,imageconvolution
+     * @see imagefilter(),imageconvolution()
      * @return Filter
      * @throws RuntimeException
      */
     public function selectiveBlur() {
-        if (false === imagefilter($this->handle, IMG_FILTER_SELECTIVE_BLUR))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_SELECTIVE_BLUR))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
 
     /**
-     * @see imagefilter,imageconvolution
+     * @see imagefilter(),imageconvolution()
      * @return Filter
      * @throws RuntimeException
      */
     public function gaussianBlur() {
-        if (false === imagefilter($this->handle, IMG_FILTER_GAUSSIAN_BLUR))
+        if (false === imagefilter($this->resource->gd, IMG_FILTER_GAUSSIAN_BLUR))
             throw new RuntimeException('Appling ' . __METHOD__ . ' failed');
         return $this;
     }
