@@ -13,7 +13,7 @@ try {
     $img2->crop(0, 0, $img->getWidth() * 3.5, $img->getHeight());
 
     $tColor  = Color::index('blue');
-    $filter  = $img->scale(50)->getCanvas()->useFilter();
+    $filter  = $img->scale(50)->getCanvas()->getFilter();
     $xOffset = $img->getWidth();
     $yOffset = $img->getHeight();
 

@@ -2,11 +2,13 @@
 
 namespace HC;
 
+use Serializable;
 use InvalidArgumentException;
 
 /**
  *
- * GDImage resource handler, sharable, noncopyable, destroy image if not needed
+ * GD image resource handler, destroy image if not needed
+ * sharable, serializable, noncopyable
  * 
  * @package HC
  * @author  h-collector <githcoll@gmail.com>
@@ -14,7 +16,7 @@ use InvalidArgumentException;
  * @link    http://hcoll.onuse.pl/projects/view/HCImage
  * @license GNU LGPL (http://www.gnu.org/copyleft/lesser.html)
  */
-class GDResource {
+class GDResource implements Serializable {
 
     public static $debug = false;
     public /** @var resource */ $gd = null;
@@ -54,7 +56,7 @@ class GDResource {
 
     public function replace($gd = null) {
         $this->destroy();
-        $this->gd = ($gd instanceof GDResource) ? $gd->gd : $gd;
+        $this->gd = $gd;
         if (self::$debug) echo "Replace with gd {$gd}\n";
         return $this->isValid();//throw Exception?
     }
@@ -67,5 +69,20 @@ class GDResource {
         return (is_resource($gd) && get_resource_type($gd) === 'gd');
     }
 
-}
+    public function serialize() {
+        ob_start();
+        imagegd2($this->gd, null, null, IMG_GD2_COMPRESSED);
+        return serialize(ob_get_clean());
+    }
 
+    public function unserialize($serialized) {
+        if (($binary = unserialize($serialized)) !== null) {
+            $this->gd  = imagecreatefromstring($binary);
+            if (!self::check($this->gd))
+                throw new RuntimeException("Could not unserialize resource data");
+            imagesavealpha($this->gd, true);
+        }
+        if (self::$debug) echo "Unserialize gd " . ($this->uid = uniqid()) . " : {$this->gd}\n";
+    }
+
+}

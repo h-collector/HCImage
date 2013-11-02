@@ -3,10 +3,12 @@
 namespace HC;
 
 use HC\GDResource;
+use HC\Helper\Font;
 use HC\Helper\Filter;
 use HC\Helper\PixelOps;
 use HC\Helper\Convolution;
 
+use Closure;
 use Countable;
 use ArrayAccess;
 use RuntimeException;
@@ -41,6 +43,7 @@ use ReflectionFunction;
  * @method  bool rectangle(int $x1, int $y1, int $x2, int $y2, int $color)
  * @method  bool line(int $x1, int $y1, int $x2, int $y2, int $color)
  * @method  bool dashedLine(int $x1, int $y1, int $x2, int $y2, int $color)
+ * @method  bool antiAlias(bool $enabled)
  * @method  bool string(int $font, int $x, int $y, string $string, int $color)
  * @method  bool stringUp(int $font, int $x, int $y, string $string, int $color)
  * @method  bool filter(int $filtertype, int $arg1, int $arg2, int $arg3, int $arg4) apply gd filter to image
@@ -156,6 +159,18 @@ class Canvas implements ArrayAccess, Countable {
         return $this->resource->replace(imagecreatefrompng($filename)) && $this->update();
     }
     
+    public function createFromGD($filename) {
+        return $this->resource->replace(imagecreatefromgd($filename)) && $this->update();
+    }
+    
+    public function createFromGD2($filename) {
+        return $this->resource->replace(imagecreatefromgd2($filename)) && $this->update();
+    }
+    
+    public function createFromGD2Part($filename, $srcX, $srcY, $width, $height) {
+        return $this->resource->replace(imagecreatefromgd2part($filename, $srcX, $srcY, $width, $height)) && $this->update();
+    }
+    
     public function createFromString($image) {
         return $this->resource->replace(imagecreatefromstring($image)) && $this->update();
     }
@@ -205,6 +220,27 @@ class Canvas implements ArrayAccess, Countable {
      */
     public function sY() {
         return $this->height;
+    }
+    
+    /**
+     * @param string $file
+     */
+    public static function loadFont($file) {
+        return imageloadfont($file);
+    }
+    
+    /**
+     * @param int $font
+     */
+    public static function fontWidth($font) {
+        return imagefontwidth($font);
+    }
+    
+    /**
+     * @param int $font
+     */
+    public static function fontHeight($font) {
+        return imagefontheight($font);
     }
 
     /**
@@ -389,27 +425,79 @@ class Canvas implements ArrayAccess, Countable {
     }
     
     /**
-     * Use helper filter class on canvas
+     * Get new helper Filter class on canvas resource
      * Note: Sets imagealphablending to false
      * 
      * @see imagefilter(),imageconvolution(),Canvas::pixelOperation()
      * @return Filter
      */
-    public function useFilter() {
+    public function getFilter() {
         return new Filter($this->resource);
     }
     
     /**
-     * Use helper Convolution class on canvas
+     * Use helper Filter class on canvas
+     * 
+     * @uses Canvas::getFilter
+     * @param Closure $closure void function(Filter $filter){}
+     * @return Canvas
+     */
+    public function useFilter(Closure $closure) {
+        $closure($this->getFilter());
+        return $this;
+    }
+    
+    /**
+     * Get new helper Convolution class on canvas resource
      * Note: Sets imagealphablending to false
      * 
      * @see imagefilter(),imageconvolution(),Canvas::pixelOperation()
      * @return Convolution
      */
-    public function useConvolution() {
+    public function getConvolution() {
         return new Convolution($this->resource);
     }
     
+    /**
+     * Use helper Convolution class on canvas
+     * 
+     * @uses Canvas::getConvolution
+     * @param Closure $closure void function(Convolution $covolution){}
+     * @return Canvas
+     */
+    public function useConvolution(Closure $closure) {
+        $closure($this->getConvolution());
+        return $this;
+    }
+    
+    /**
+     * Get helper Font class on canvas resource
+     * 
+     * @param string|Font $fontFile
+     * @param mixed $color
+     * @param int $size
+     * @return Font
+     */
+    public function getFont($fontFile, $color = 0x000000, $size = 10) {
+        if ($fontFile instanceof Font)
+            return $fontFile->setResource($this->resource);
+        return new Font($this->resource, $fontFile, $color, $size);
+    }
+    
+    /**
+     * Use helper Font class on canvas
+     * 
+     * @uses Canvas::getFont
+     * @param string|Font $fontFile
+     * @param Closure $closure void function(Font $font){}
+     * @param mixed $color
+     * @param int $size
+     * @return Canvas
+     */
+    public function useFont($fontFile, Closure $closure, $color = 0x000000, $size = 10) {
+        $closure($this->getFont($fontFile, $color, $size));
+        return $this;
+    }
     
     /**
      * Apply predefined Canvas::pixelOperation (one time)

@@ -10,7 +10,7 @@ try {
     
     $img2 = clone $img->trim();
     $img->getCanvas()
-            ->useFilter()
+            ->getFilter()
             ->grayScale()
             ->negate()
             ->colorize(2, 118, 219)

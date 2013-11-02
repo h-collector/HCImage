@@ -4,6 +4,8 @@ HCImage - Yet Another PHP Image library
 ## Specifics:
 - OOP wrapper for gd extension
 - easy to use
+- fluent interface
+- serializable
 - documented
 - fast, internally try to be as fast as possible (where needed eg per pixel operations)
 - by default add/save transparency so can be memory hungry
@@ -24,7 +26,7 @@ try {
     
     $img2 = clone $img->trim();
     $img->getCanvas()
-            ->useFilter()
+            ->getFilter()
             ->grayScale()
             ->negate()
             ->colorize(2, 118, 219)
@@ -44,9 +46,9 @@ try {
 
 ## TODO
 
-- maybe generate docs
-- add more helpers eg. Font, Effects, Gradients
-- add masking functionality
+- prepare for composer
+- add more helpers eg. Effects, Gradients
 - add more examples
 - add maybe some unit tests ?
+- maybe generate docs
 

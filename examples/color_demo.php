@@ -40,6 +40,12 @@ try {
 
     echo "HSV:    ", $hsv = Color::fromHSV(200, 0.5, 1.0), PHP_EOL;
     print_r($hsv->getAsHSV());
+    
+    echo "RGB:    ", $rgb  = Color::fromString('rgb(200,100,80)'), PHP_EOL;
+    echo "RGB:    ", $rgb  = Color::fromString('200, 100, 80'), PHP_EOL;
+    echo "RGBA:   ", $rgba = Color::fromString('200, 100, 80, 0.3'), PHP_EOL;
+    echo "RGBA:   ", $rgba = Color::fromString('rgba(200,100,80,0)'), PHP_EOL;
+    echo "RGBA:   ", $rgba = Color::fromString('rgba(20, 10, 800, 1)'), PHP_EOL;
 
     echo "Conversions:\n";
     echo "Base:       ", $c = Color::fromArray(array(200, 100, 10)), PHP_EOL;

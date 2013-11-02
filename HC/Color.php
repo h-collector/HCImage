@@ -120,7 +120,7 @@ final class Color {
     /**
      * Create new color from string
      * 
-     * @param string $color valid css value eg. #00ff00ff, #00ff00, #000, cyan
+     * @param string $color valid css value eg. #00ff00ff, #00ff00, #000, cyan, rgba(20,10,90,0.5)
      * @return Color
      */
     public static function fromString($color) {
@@ -140,6 +140,10 @@ final class Color {
             }
         } elseif (($c = self::namedColor2RGB($c)) !== false) {
             return self::fromArray($c, false);
+        } elseif(preg_match_all('/[.\d]+/', $color, $rgba) && count($rgba[0]) >= 3){
+            if(isset($rgba[0][3]) && $rgba[0][3] <= 1) 
+                $rgba[0][3] = 127 - ($rgba[0][3] * 127);
+            return self::fromArray($rgba[0]);
         } else {
             throw new InvalidArgumentException(sprintf(
                     'Named Color not found, "%s" given', $c

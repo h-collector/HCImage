@@ -23,7 +23,7 @@ try {
     $image1->save('out/trans3');
     unset($image1);
 
-    //resieze to height transparent image and paste over it 
+    //resize to height transparent image and paste over it 
     //nontransparent with translucency 50, save using filters
     $image2->resizeToHeight(100);
     $image3->merge($image2, Image::AUTO, Image::AUTO, 50);

@@ -21,8 +21,8 @@ try {
         ->merge($img3, $img3->getWidth() * 2, 0)
         ->save('out/scale','png',9);
         
-    $img->scale(200, true)->getCanvas()->useConvolution()->dilate();
-    $img->scale(50,  true)->getCanvas()->useConvolution()->sharpenNice(); 
+    $img->scale(200, true)->getCanvas()->getConvolution()->dilate();
+    $img->scale(50,  true)->getCanvas()->getConvolution()->sharpenNice(); 
     $img->save('out/scale2','png',9);
 } catch (Exception $exc) {
     echo $exc->getMessage(), PHP_EOL;
